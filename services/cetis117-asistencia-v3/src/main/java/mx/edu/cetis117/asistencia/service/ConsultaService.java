@@ -174,7 +174,7 @@ public class ConsultaService {
 
         return new ConsultaAlumnoResponse(
                 alumno.getString("idAlumno"),
-                alumnoService.obtenerNombreCompleto(alumno),
+                alumnos.obtenerNombreCompleto(alumno),
                 String.valueOf(alumno.get("idGrupo")),
                 tutor,
                 filas

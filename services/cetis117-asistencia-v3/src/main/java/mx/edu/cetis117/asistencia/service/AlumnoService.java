@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -79,8 +80,7 @@ public class AlumnoService {
         List<DocumentSnapshot> resultado = new ArrayList<>();
 
         for (DocumentSnapshot documento : query.getDocuments()) {
-            String nombreCompleto =
-                    obtenerNombreCompleto(documento);
+            String nombreCompleto = obtenerNombreCompleto(documento);
 
             if (nombreCompleto
                     .toLowerCase()
@@ -93,11 +93,47 @@ public class AlumnoService {
         return resultado;
     }
 
+    public DocumentSnapshot buscarPorIniciales(
+            String iniciales
+    ) throws Exception {
+
+        String inicialesNormalizadas = normalizarIniciales(iniciales);
+
+        if (inicialesNormalizadas.isBlank()) {
+            return null;
+        }
+
+        QuerySnapshot query = firestore
+                .collection("alumnos")
+                .whereEqualTo("activo", true)
+                .get()
+                .get();
+
+        List<DocumentSnapshot> coincidencias = new ArrayList<>();
+
+        for (DocumentSnapshot alumno : query.getDocuments()) {
+            String inicialesAlumno = generarIniciales(alumno);
+
+            if (inicialesNormalizadas.equals(inicialesAlumno)) {
+                coincidencias.add(alumno);
+            }
+        }
+
+        if (coincidencias.size() > 1) {
+            throw new IllegalArgumentException(
+                    "Las iniciales corresponden a más de un alumno"
+            );
+        }
+
+        return coincidencias.isEmpty()
+                ? null
+                : coincidencias.get(0);
+    }
+
     public String obtenerNombreCompleto(
             DocumentSnapshot alumno
     ) {
-        String nombreCompleto =
-                alumno.getString("nombreCompleto");
+        String nombreCompleto = alumno.getString("nombreCompleto");
 
         if (nombreCompleto != null
                 && !nombreCompleto.isBlank()) {
@@ -116,6 +152,47 @@ public class AlumnoService {
                                         && !valor.isBlank()
                 )
                 .collect(Collectors.joining(" "));
+    }
+
+    public String generarIniciales(
+            DocumentSnapshot alumno
+    ) {
+        return normalizarIniciales(
+                obtenerNombreCompleto(alumno)
+        );
+    }
+
+    public String normalizarIniciales(
+            String texto
+    ) {
+        if (texto == null || texto.isBlank()) {
+            return "";
+        }
+
+        String normalizado = Normalizer
+                .normalize(texto, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .trim()
+                .toUpperCase();
+
+        String[] palabras = normalizado.split("\\s+");
+
+        if (palabras.length == 1) {
+            return palabras[0]
+                    .replaceAll("[^A-Z0-9]", "");
+        }
+
+        StringBuilder iniciales = new StringBuilder();
+
+        for (String palabra : palabras) {
+            String limpia = palabra.replaceAll("[^A-Z0-9]", "");
+
+            if (!limpia.isBlank()) {
+                iniciales.append(limpia.charAt(0));
+            }
+        }
+
+        return iniciales.toString();
     }
 
     public int importarCsv(
@@ -142,11 +219,9 @@ public class AlumnoService {
                 var parser = format.parse(reader)
         ) {
             for (CSVRecord record : parser) {
-                String idAlumno =
-                        required(record, "idAlumno");
+                String idAlumno = required(record, "idAlumno");
 
-                Map<String, Object> documento =
-                        new HashMap<>();
+                Map<String, Object> documento = new HashMap<>();
 
                 documento.put("idAlumno", idAlumno);
                 documento.put("nombre", value(record, "nombre"));
@@ -177,8 +252,7 @@ public class AlumnoService {
                         value(record, "codigoTutorHash")
                 );
 
-                Map<String, Object> tutor =
-                        new HashMap<>();
+                Map<String, Object> tutor = new HashMap<>();
 
                 tutor.put(
                         "nombre",
@@ -258,8 +332,7 @@ public class AlumnoService {
             CSVRecord record,
             String name
     ) {
-        String value =
-                value(record, name);
+        String value = value(record, name);
 
         if (value.isBlank()) {
             throw new IllegalArgumentException(

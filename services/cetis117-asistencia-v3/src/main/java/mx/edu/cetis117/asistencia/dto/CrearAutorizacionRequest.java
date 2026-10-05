@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public record CrearAutorizacionRequest(
         @NotBlank String tipo,
-        Long fingerprintId,
+        String iniciales,
         String idGrupo,
         @NotBlank String idUsuarioAutoriza,
         @NotBlank String motivo

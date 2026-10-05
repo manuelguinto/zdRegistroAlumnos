@@ -107,3 +107,25 @@ Invoke-RestMethod `
 - Si no existe el `fingerprintId`, se responde `Alumno no registrado`.
 - La consulta construye `nombreCompleto` con nombre + apellidos cuando el campo no exista.
 - Los datos de autorización en la consulta se muestran únicamente cuando el registro contiene `idAutorizacion`.
+
+## Cambios v7
+
+- Autorización por alumno ahora recibe `iniciales` en lugar de `fingerprintId`.
+- El backend busca al alumno activo que corresponde a esas iniciales.
+- Si las iniciales corresponden a más de un alumno, se devuelve un error para evitar autorizar al alumno incorrecto.
+- Solo puede existir una autorización de ALUMNO por día. Si ya existe, responde: `Ya ha sido autorizada su salida.`
+- Al registrar una salida, el estado del registro cambia a `Completado`.
+- Un registro `Completado` queda sellado: nuevas lecturas ese mismo día no cambian entrada ni salida y responden: `Debe esperar al día de mañana para poder registrar su entrada nuevamente`.
+- Al día siguiente se crea un nuevo documento de registro automáticamente porque el ID incluye la fecha.
+- Las salidas autorizadas conservan `idAutorizacion`, por lo que la consulta sigue mostrando quién autorizó y el motivo.
+
+### Request de autorización por alumno
+
+```json
+{
+  "tipo": "ALUMNO",
+  "iniciales": "MDGM",
+  "idUsuarioAutoriza": "TMARTINEZ",
+  "motivo": "Solicitud del tutor"
+}
+```

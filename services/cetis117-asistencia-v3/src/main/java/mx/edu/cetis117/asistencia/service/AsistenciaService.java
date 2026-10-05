@@ -36,7 +36,9 @@ public class AsistenciaService {
         this.systemParamsService = systemParamsService;
     }
 
-    public AsistenciaResponse registrar(Long fingerprintId) throws Exception {
+    public AsistenciaResponse registrar(
+            Long fingerprintId
+    ) throws Exception {
 
         DocumentSnapshot alumno =
                 alumnoService.buscarPorFingerprint(fingerprintId);
@@ -54,6 +56,9 @@ public class AsistenciaService {
 
         String nombreAlumno =
                 alumnoService.obtenerNombreCompleto(alumno);
+
+        String inicialesAlumno =
+                alumnoService.generarIniciales(alumno);
 
         String idGrupo =
                 String.valueOf(alumno.get("idGrupo"));
@@ -88,11 +93,13 @@ public class AsistenciaService {
             );
         }
 
-        if (registro.get("fechaHoraSalida") != null) {
+        if (registro.get("fechaHoraSalida") != null
+                || "Completado".equals(registro.getString("estado"))) {
+
             return new AsistenciaResponse(
-                    "REGISTRO_COMPLETO",
-                    "La entrada y salida del día ya fueron registradas",
-                    registro.getString("estado"),
+                    "REGISTRO_COMPLETADO",
+                    "Debe esperar al día de mañana para poder registrar su entrada nuevamente",
+                    "Completado",
                     idRegistro,
                     registro.getString("idAutorizacion"),
                     nombreAlumno
@@ -105,14 +112,13 @@ public class AsistenciaService {
         if (!requiereAutorizacion) {
             registrarSalida(
                     registroRef,
-                    "SalidaRegistrada",
                     null
             );
 
             return new AsistenciaResponse(
                     "SALIDA_REGISTRADA",
                     "Registro de salida exitosa, buen regreso a casa",
-                    "SalidaRegistrada",
+                    "Completado",
                     idRegistro,
                     null,
                     nombreAlumno
@@ -136,7 +142,9 @@ public class AsistenciaService {
         String horaSalidaTexto =
                 grupo.getString("horaSalida");
 
-        if (horaSalidaTexto == null || horaSalidaTexto.isBlank()) {
+        if (horaSalidaTexto == null
+                || horaSalidaTexto.isBlank()) {
+
             return new AsistenciaResponse(
                     "HORARIO_NO_CONFIGURADO",
                     "El grupo no tiene hora de salida configurada",
@@ -162,14 +170,13 @@ public class AsistenciaService {
         if (!horaActual.isBefore(horaPermitidaSalida)) {
             registrarSalida(
                     registroRef,
-                    "SalidaRegistrada",
                     null
             );
 
             return new AsistenciaResponse(
                     "SALIDA_REGISTRADA",
                     "Registro de salida exitosa, buen regreso a casa",
-                    "SalidaRegistrada",
+                    "Completado",
                     idRegistro,
                     null,
                     nombreAlumno
@@ -178,7 +185,7 @@ public class AsistenciaService {
 
         DocumentSnapshot autorizacion =
                 autorizacionService.buscarAutorizacionActiva(
-                        fingerprintId,
+                        inicialesAlumno,
                         idGrupo
                 );
 
@@ -198,14 +205,13 @@ public class AsistenciaService {
 
         registrarSalida(
                 registroRef,
-                "SalidaAutorizada",
                 idAutorizacion
         );
 
         return new AsistenciaResponse(
                 "SALIDA_AUTORIZADA",
                 "Registro de salida exitosa, buen regreso a casa",
-                "SalidaAutorizada",
+                "Completado",
                 idRegistro,
                 idAutorizacion,
                 nombreAlumno
@@ -214,13 +220,12 @@ public class AsistenciaService {
 
     private void registrarSalida(
             DocumentReference registroRef,
-            String estado,
             String idAutorizacion
     ) throws Exception {
 
         Map<String, Object> update = new HashMap<>();
         update.put("fechaHoraSalida", Timestamp.now());
-        update.put("estado", estado);
+        update.put("estado", "Completado");
         update.put("idAutorizacion", idAutorizacion);
 
         registroRef.update(update).get();

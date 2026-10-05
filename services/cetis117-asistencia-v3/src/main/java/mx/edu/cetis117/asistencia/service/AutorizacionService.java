@@ -19,72 +19,126 @@ public class AutorizacionService {
     private static final ZoneId ZONE_ID = ZoneId.of("America/Mexico_City");
 
     private final Firestore firestore;
-    private final AlumnoService alumnos;
-    private final UsuarioSistemaService usuarios;
+    private final AlumnoService alumnoService;
+    private final UsuarioSistemaService usuarioSistemaService;
 
     public AutorizacionService(
             Firestore firestore,
-            AlumnoService alumnos,
-            UsuarioSistemaService usuarios
+            AlumnoService alumnoService,
+            UsuarioSistemaService usuarioSistemaService
     ) {
         this.firestore = firestore;
-        this.alumnos = alumnos;
-        this.usuarios = usuarios;
+        this.alumnoService = alumnoService;
+        this.usuarioSistemaService = usuarioSistemaService;
     }
 
-    public Map<String, Object> crear(CrearAutorizacionRequest request) throws Exception {
+    public Map<String, Object> crear(
+            CrearAutorizacionRequest request
+    ) throws Exception {
 
         String tipo = request.tipo().trim().toUpperCase();
 
         if (!tipo.equals("ALUMNO") && !tipo.equals("GRUPO")) {
-            throw new IllegalArgumentException("tipo debe ser ALUMNO o GRUPO");
+            throw new IllegalArgumentException(
+                    "tipo debe ser ALUMNO o GRUPO"
+            );
         }
 
-        if (usuarios.buscarPorIdUsuario(request.idUsuarioAutoriza()) == null) {
-            throw new IllegalArgumentException("Usuario autorizador no encontrado o inactivo");
+        if (usuarioSistemaService
+                .buscarPorIdUsuario(request.idUsuarioAutoriza()) == null) {
+
+            throw new IllegalArgumentException(
+                    "Usuario autorizador no encontrado o inactivo"
+            );
         }
+
+        String iniciales = null;
 
         if (tipo.equals("ALUMNO")) {
-            if (request.fingerprintId() == null) {
+            if (request.iniciales() == null
+                    || request.iniciales().isBlank()) {
+
                 throw new IllegalArgumentException(
-                        "fingerprintId es obligatorio para autorización por ALUMNO"
+                        "iniciales es obligatorio para autorización por ALUMNO"
                 );
             }
 
-            if (alumnos.buscarPorFingerprint(request.fingerprintId()) == null) {
-                throw new IllegalArgumentException("Alumno no encontrado");
+            DocumentSnapshot alumno =
+                    alumnoService.buscarPorIniciales(request.iniciales());
+
+            if (alumno == null) {
+                throw new IllegalArgumentException(
+                        "Alumno no registrado"
+                );
+            }
+
+            iniciales = alumnoService.generarIniciales(alumno);
+
+            DocumentSnapshot autorizacionExistente =
+                    buscarAutorizacionAlumnoDelDia(iniciales);
+
+            if (autorizacionExistente != null) {
+                Map<String, Object> respuesta = new HashMap<>();
+                respuesta.put(
+                        "resultado",
+                        "AUTORIZACION_EXISTENTE"
+                );
+                respuesta.put(
+                        "mensaje",
+                        "Ya ha sido autorizada su salida."
+                );
+                respuesta.put(
+                        "idAutorizacion",
+                        autorizacionExistente.getString("idAutorizacion")
+                );
+                respuesta.put(
+                        "iniciales",
+                        iniciales
+                );
+                return respuesta;
             }
         }
 
         if (tipo.equals("GRUPO")
-                && (request.idGrupo() == null || request.idGrupo().isBlank())) {
+                && (request.idGrupo() == null
+                || request.idGrupo().isBlank())) {
+
             throw new IllegalArgumentException(
                     "idGrupo es obligatorio para autorización por GRUPO"
             );
         }
 
-        String id = "AUT-" +
-                UUID.randomUUID()
-                        .toString()
-                        .substring(0, 8)
-                        .toUpperCase();
+        String id = "AUT-" + UUID
+                .randomUUID()
+                .toString()
+                .substring(0, 8)
+                .toUpperCase();
 
         Map<String, Object> data = new HashMap<>();
         data.put("idAutorizacion", id);
         data.put("tipo", tipo);
         data.put(
-                "fingerprintId",
-                tipo.equals("ALUMNO") ? request.fingerprintId() : null
+                "iniciales",
+                tipo.equals("ALUMNO") ? iniciales : null
         );
         data.put(
                 "idGrupo",
                 tipo.equals("GRUPO") ? request.idGrupo() : null
         );
-        data.put("idUsuarioAutoriza", request.idUsuarioAutoriza());
-        data.put("fechaHoraAutorizacion", Timestamp.now());
+        data.put(
+                "idUsuarioAutoriza",
+                request.idUsuarioAutoriza()
+        );
+        data.put(
+                "fechaHoraAutorizacion",
+                Timestamp.now()
+        );
         data.put("motivo", request.motivo());
         data.put("activa", true);
-        data.put("fecha", LocalDate.now(ZONE_ID).toString());
+        data.put(
+                "fecha",
+                LocalDate.now(ZONE_ID).toString()
+        );
 
         firestore
                 .collection("autorizacionesSalida")
@@ -92,42 +146,100 @@ public class AutorizacionService {
                 .set(data)
                 .get();
 
+        data.put("resultado", "AUTORIZACION_CREADA");
+        data.put("mensaje", "Autorización registrada correctamente");
+
         return data;
     }
 
     public DocumentSnapshot buscarAutorizacionActiva(
-            Long fingerprintId,
+            String iniciales,
             String idGrupo
     ) throws Exception {
 
         String hoy = LocalDate.now(ZONE_ID).toString();
 
-        QuerySnapshot porAlumno = firestore
+        QuerySnapshot autorizaciones = firestore
                 .collection("autorizacionesSalida")
-                .whereEqualTo("activa", true)
-                .whereEqualTo("tipo", "ALUMNO")
-                .whereEqualTo("fingerprintId", fingerprintId)
                 .whereEqualTo("fecha", hoy)
-                .limit(1)
                 .get()
                 .get();
 
-        if (!porAlumno.isEmpty()) {
-            return porAlumno.getDocuments().get(0);
+        for (DocumentSnapshot autorizacion
+                : autorizaciones.getDocuments()) {
+
+            if (!Boolean.TRUE.equals(
+                    autorizacion.getBoolean("activa")
+            )) {
+                continue;
+            }
+
+            String tipo = autorizacion.getString("tipo");
+
+            if ("ALUMNO".equals(tipo)
+                    && iniciales.equals(
+                    autorizacion.getString("iniciales")
+            )) {
+                return autorizacion;
+            }
         }
 
-        QuerySnapshot porGrupo = firestore
+        for (DocumentSnapshot autorizacion
+                : autorizaciones.getDocuments()) {
+
+            if (!Boolean.TRUE.equals(
+                    autorizacion.getBoolean("activa")
+            )) {
+                continue;
+            }
+
+            String tipo = autorizacion.getString("tipo");
+
+            if ("GRUPO".equals(tipo)
+                    && idGrupo.equals(
+                    String.valueOf(autorizacion.get("idGrupo"))
+            )) {
+                return autorizacion;
+            }
+        }
+
+        return null;
+    }
+
+    private DocumentSnapshot buscarAutorizacionAlumnoDelDia(
+            String iniciales
+    ) throws Exception {
+
+        String hoy = LocalDate.now(ZONE_ID).toString();
+
+        QuerySnapshot autorizaciones = firestore
                 .collection("autorizacionesSalida")
-                .whereEqualTo("activa", true)
-                .whereEqualTo("tipo", "GRUPO")
-                .whereEqualTo("idGrupo", idGrupo)
                 .whereEqualTo("fecha", hoy)
-                .limit(1)
                 .get()
                 .get();
 
-        return porGrupo.isEmpty()
-                ? null
-                : porGrupo.getDocuments().get(0);
+        for (DocumentSnapshot autorizacion
+                : autorizaciones.getDocuments()) {
+
+            if (!Boolean.TRUE.equals(
+                    autorizacion.getBoolean("activa")
+            )) {
+                continue;
+            }
+
+            if (!"ALUMNO".equals(
+                    autorizacion.getString("tipo")
+            )) {
+                continue;
+            }
+
+            if (iniciales.equals(
+                    autorizacion.getString("iniciales")
+            )) {
+                return autorizacion;
+            }
+        }
+
+        return null;
     }
 }
