@@ -108,6 +108,27 @@ public class AutorizacionService {
             );
         }
 
+
+        if (tipo.equals("GRUPO")) {
+            String hoy = LocalDate.now(ZONE_ID).toString();
+
+            QuerySnapshot autorizacionesGrupo = firestore
+                    .collection("autorizacionesSalida")
+                    .whereEqualTo("tipo", "GRUPO")
+                    .whereEqualTo("idGrupo", request.idGrupo())
+                    .whereEqualTo("fecha", hoy)
+                    .limit(1)
+                    .get()
+                    .get();
+
+            if (!autorizacionesGrupo.isEmpty()) {
+                Map<String, Object> respuesta = new HashMap<>();
+                respuesta.put("resultado", "AUTORIZACION_GRUPO_EXISTENTE");
+                respuesta.put("mensaje", "Grupo ya fue autorizado previamente");
+                return respuesta;
+            }
+        }
+
         String id = "AUT-" + UUID
                 .randomUUID()
                 .toString()

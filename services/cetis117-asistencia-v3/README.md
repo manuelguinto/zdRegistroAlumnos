@@ -140,3 +140,19 @@ Invoke-RestMethod `
   `"iniciales": "MSGG"`
 - El registro de salida busca la autorización usando exactamente las iniciales almacenadas en el alumno.
 - La importación CSV acepta la columna `iniciales`.
+
+
+## Cambios v9
+
+- Se agrega validación para autorización por grupo.
+- Solo se permite una autorización por grupo por día.
+- Si ya existe una autorización para el mismo `idGrupo` en la fecha actual, el servicio responde:
+
+```json
+{
+  "resultado": "AUTORIZACION_GRUPO_EXISTENTE",
+  "mensaje": "Grupo ya fue autorizado previamente"
+}
+```
+
+- No se crea un segundo documento de autorización para ese grupo durante el mismo día.
