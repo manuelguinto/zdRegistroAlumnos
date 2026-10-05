@@ -19,6 +19,7 @@ mx\edu\cetis117\asistencia\dto\AccesoResponse.class
 mx\edu\cetis117\asistencia\controller\RegistroController.class
 mx\edu\cetis117\asistencia\AsistenciaApplication.class
 mx\edu\cetis117\asistencia\dto\ConsultaRegistroDto.class
+mx\edu\cetis117\asistencia\controller\PingController.class
 mx\edu\cetis117\asistencia\util\FirestoreUtil.class
 mx\edu\cetis117\asistencia\controller\AlumnoController.class
 mx\edu\cetis117\asistencia\dto\GrupoResponse.class
