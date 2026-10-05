@@ -20,47 +20,55 @@ public class AsistenciaService {
     private static final ZoneId ZONE_ID = ZoneId.of("America/Mexico_City");
 
     private final Firestore firestore;
-    private final AlumnoService alumnos;
+    private final AlumnoService alumnoService;
     private final AutorizacionService autorizacionService;
-    private final SystemParamsService paramsService;
+    private final SystemParamsService systemParamsService;
 
     public AsistenciaService(
             Firestore firestore,
-            AlumnoService alumnos,
+            AlumnoService alumnoService,
             AutorizacionService autorizacionService,
-            SystemParamsService paramsService
+            SystemParamsService systemParamsService
     ) {
         this.firestore = firestore;
-        this.alumnos = alumnos;
+        this.alumnoService = alumnoService;
         this.autorizacionService = autorizacionService;
-        this.paramsService = paramsService;
+        this.systemParamsService = systemParamsService;
     }
 
     public AsistenciaResponse registrar(Long fingerprintId) throws Exception {
 
-        DocumentSnapshot alumno = alumnos.buscarPorFingerprint(fingerprintId);
+        DocumentSnapshot alumno =
+                alumnoService.buscarPorFingerprint(fingerprintId);
 
         if (alumno == null) {
             return new AsistenciaResponse(
-                    "HUELLA_NO_REGISTRADA",
-                    "Huella no registrada",
-                    null, null, null, null
+                    "ALUMNO_NO_REGISTRADO",
+                    "Alumno no registrado",
+                    null,
+                    null,
+                    null,
+                    null
             );
         }
 
-        String nombre = alumno.getString("nombreCompleto");
-        String idGrupo = String.valueOf(alumno.get("idGrupo"));
-        String idRegistro = fingerprintId + "_" + LocalDate.now(ZONE_ID);
+        String nombreAlumno =
+                alumnoService.obtenerNombreCompleto(alumno);
 
-        DocumentReference ref = firestore
+        String idGrupo =
+                String.valueOf(alumno.get("idGrupo"));
+
+        String idRegistro =
+                fingerprintId + "_" + LocalDate.now(ZONE_ID);
+
+        DocumentReference registroRef = firestore
                 .collection("registro")
                 .document(idRegistro);
 
-        DocumentSnapshot registro = ref.get().get();
+        DocumentSnapshot registro =
+                registroRef.get().get();
 
-        // Primera lectura del día = entrada
         if (!registro.exists()) {
-
             Map<String, Object> data = new HashMap<>();
             data.put("fingerprintId", fingerprintId);
             data.put("fechaHoraEntrada", Timestamp.now());
@@ -68,7 +76,7 @@ public class AsistenciaService {
             data.put("estado", "EntradaRegistrada");
             data.put("idAutorizacion", null);
 
-            ref.set(data).get();
+            registroRef.set(data).get();
 
             return new AsistenciaResponse(
                     "ENTRADA_REGISTRADA",
@@ -76,11 +84,10 @@ public class AsistenciaService {
                     "EntradaRegistrada",
                     idRegistro,
                     null,
-                    nombre
+                    nombreAlumno
             );
         }
 
-        // Ya completó entrada y salida
         if (registro.get("fechaHoraSalida") != null) {
             return new AsistenciaResponse(
                     "REGISTRO_COMPLETO",
@@ -88,11 +95,32 @@ public class AsistenciaService {
                     registro.getString("estado"),
                     idRegistro,
                     registro.getString("idAutorizacion"),
-                    nombre
+                    nombreAlumno
             );
         }
 
-        DocumentSnapshot grupo = buscarGrupo(idGrupo);
+        boolean requiereAutorizacion =
+                systemParamsService.getRequiereAutorizacionSalida();
+
+        if (!requiereAutorizacion) {
+            registrarSalida(
+                    registroRef,
+                    "SalidaRegistrada",
+                    null
+            );
+
+            return new AsistenciaResponse(
+                    "SALIDA_REGISTRADA",
+                    "Registro de salida exitosa, buen regreso a casa",
+                    "SalidaRegistrada",
+                    idRegistro,
+                    null,
+                    nombreAlumno
+            );
+        }
+
+        DocumentSnapshot grupo =
+                buscarGrupo(idGrupo);
 
         if (grupo == null) {
             return new AsistenciaResponse(
@@ -101,37 +129,42 @@ public class AsistenciaService {
                     "EntradaRegistrada",
                     idRegistro,
                     null,
-                    nombre
+                    nombreAlumno
             );
         }
 
-        String horaSalidaTxt = grupo.getString("horaSalida");
+        String horaSalidaTexto =
+                grupo.getString("horaSalida");
 
-        if (horaSalidaTxt == null || horaSalidaTxt.isBlank()) {
+        if (horaSalidaTexto == null || horaSalidaTexto.isBlank()) {
             return new AsistenciaResponse(
                     "HORARIO_NO_CONFIGURADO",
                     "El grupo no tiene hora de salida configurada",
                     "EntradaRegistrada",
                     idRegistro,
                     null,
-                    nombre
+                    nombreAlumno
             );
         }
 
-        LocalTime horaSalida = LocalTime.parse(horaSalidaTxt);
-        int minutosTolerancia = paramsService.getMinutosToleranciaSalida();
-        LocalTime horaPermitida = horaSalida.minusMinutes(minutosTolerancia);
-        LocalTime ahora = LocalTime.now(ZONE_ID);
+        int minutosTolerancia =
+                systemParamsService.getMinutosToleranciaSalida();
 
-        // Salida normal
-        if (!ahora.isBefore(horaPermitida)) {
+        LocalTime horaSalida =
+                LocalTime.parse(horaSalidaTexto);
 
-            Map<String, Object> update = new HashMap<>();
-            update.put("fechaHoraSalida", Timestamp.now());
-            update.put("estado", "SalidaRegistrada");
-            update.put("idAutorizacion", null);
+        LocalTime horaPermitidaSalida =
+                horaSalida.minusMinutes(minutosTolerancia);
 
-            ref.update(update).get();
+        LocalTime horaActual =
+                LocalTime.now(ZONE_ID);
+
+        if (!horaActual.isBefore(horaPermitidaSalida)) {
+            registrarSalida(
+                    registroRef,
+                    "SalidaRegistrada",
+                    null
+            );
 
             return new AsistenciaResponse(
                     "SALIDA_REGISTRADA",
@@ -139,13 +172,15 @@ public class AsistenciaService {
                     "SalidaRegistrada",
                     idRegistro,
                     null,
-                    nombre
+                    nombreAlumno
             );
         }
 
-        // Salida antes de horario: buscar autorización alumno/grupo
         DocumentSnapshot autorizacion =
-                autorizacionService.buscarAutorizacionActiva(fingerprintId, idGrupo);
+                autorizacionService.buscarAutorizacionActiva(
+                        fingerprintId,
+                        idGrupo
+                );
 
         if (autorizacion == null) {
             return new AsistenciaResponse(
@@ -154,18 +189,18 @@ public class AsistenciaService {
                     "EntradaRegistrada",
                     idRegistro,
                     null,
-                    nombre
+                    nombreAlumno
             );
         }
 
-        String idAutorizacion = autorizacion.getString("idAutorizacion");
+        String idAutorizacion =
+                autorizacion.getString("idAutorizacion");
 
-        Map<String, Object> update = new HashMap<>();
-        update.put("fechaHoraSalida", Timestamp.now());
-        update.put("estado", "SalidaAutorizada");
-        update.put("idAutorizacion", idAutorizacion);
-
-        ref.update(update).get();
+        registrarSalida(
+                registroRef,
+                "SalidaAutorizada",
+                idAutorizacion
+        );
 
         return new AsistenciaResponse(
                 "SALIDA_AUTORIZADA",
@@ -173,14 +208,29 @@ public class AsistenciaService {
                 "SalidaAutorizada",
                 idRegistro,
                 idAutorizacion,
-                nombre
+                nombreAlumno
         );
     }
 
-    private DocumentSnapshot buscarGrupo(String idGrupo) throws Exception {
+    private void registrarSalida(
+            DocumentReference registroRef,
+            String estado,
+            String idAutorizacion
+    ) throws Exception {
 
-        // Primero intenta String
-        QuerySnapshot qs = firestore
+        Map<String, Object> update = new HashMap<>();
+        update.put("fechaHoraSalida", Timestamp.now());
+        update.put("estado", estado);
+        update.put("idAutorizacion", idAutorizacion);
+
+        registroRef.update(update).get();
+    }
+
+    private DocumentSnapshot buscarGrupo(
+            String idGrupo
+    ) throws Exception {
+
+        QuerySnapshot query = firestore
                 .collection("grupo")
                 .whereEqualTo("idGrupo", idGrupo)
                 .whereEqualTo("activo", true)
@@ -188,25 +238,27 @@ public class AsistenciaService {
                 .get()
                 .get();
 
-        if (!qs.isEmpty()) {
-            return qs.getDocuments().get(0);
+        if (!query.isEmpty()) {
+            return query.getDocuments().get(0);
         }
 
-        // Compatibilidad con el dato actual de Firestore si idGrupo fue creado como número
         try {
-            Long idNumerico = Long.parseLong(idGrupo);
+            Long idGrupoNumerico =
+                    Long.parseLong(idGrupo);
 
-            qs = firestore
+            query = firestore
                     .collection("grupo")
-                    .whereEqualTo("idGrupo", idNumerico)
+                    .whereEqualTo("idGrupo", idGrupoNumerico)
                     .whereEqualTo("activo", true)
                     .limit(1)
                     .get()
                     .get();
 
-            return qs.isEmpty() ? null : qs.getDocuments().get(0);
+            return query.isEmpty()
+                    ? null
+                    : query.getDocuments().get(0);
 
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException exception) {
             return null;
         }
     }

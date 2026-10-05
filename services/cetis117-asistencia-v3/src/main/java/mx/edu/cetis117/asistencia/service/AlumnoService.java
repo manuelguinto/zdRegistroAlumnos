@@ -16,7 +16,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class AlumnoService {
@@ -78,11 +79,8 @@ public class AlumnoService {
         List<DocumentSnapshot> resultado = new ArrayList<>();
 
         for (DocumentSnapshot documento : query.getDocuments()) {
-            String nombreCompleto = Optional
-                    .ofNullable(
-                            documento.getString("nombreCompleto")
-                    )
-                    .orElse("");
+            String nombreCompleto =
+                    obtenerNombreCompleto(documento);
 
             if (nombreCompleto
                     .toLowerCase()
@@ -93,6 +91,31 @@ public class AlumnoService {
         }
 
         return resultado;
+    }
+
+    public String obtenerNombreCompleto(
+            DocumentSnapshot alumno
+    ) {
+        String nombreCompleto =
+                alumno.getString("nombreCompleto");
+
+        if (nombreCompleto != null
+                && !nombreCompleto.isBlank()) {
+
+            return nombreCompleto;
+        }
+
+        return Stream.of(
+                        alumno.getString("nombre"),
+                        alumno.getString("apellidoPaterno"),
+                        alumno.getString("apellidoMaterno")
+                )
+                .filter(
+                        valor ->
+                                valor != null
+                                        && !valor.isBlank()
+                )
+                .collect(Collectors.joining(" "));
     }
 
     public int importarCsv(
@@ -111,31 +134,22 @@ public class AlumnoService {
         WriteBatch batch = firestore.batch();
 
         try (
-                InputStreamReader reader = new InputStreamReader(
-                        file.getInputStream(),
-                        StandardCharsets.UTF_8
-                );
+                InputStreamReader reader =
+                        new InputStreamReader(
+                                file.getInputStream(),
+                                StandardCharsets.UTF_8
+                        );
                 var parser = format.parse(reader)
         ) {
-
             for (CSVRecord record : parser) {
-
-                String idAlumno = required(
-                        record,
-                        "idAlumno"
-                );
+                String idAlumno =
+                        required(record, "idAlumno");
 
                 Map<String, Object> documento =
                         new HashMap<>();
 
-                documento.put(
-                        "idAlumno",
-                        idAlumno
-                );
-                documento.put(
-                        "nombre",
-                        value(record, "nombre")
-                );
+                documento.put("idAlumno", idAlumno);
+                documento.put("nombre", value(record, "nombre"));
                 documento.put(
                         "apellidoPaterno",
                         value(record, "apellidoPaterno")
@@ -155,18 +169,12 @@ public class AlumnoService {
                 documento.put(
                         "fingerprintId",
                         Long.parseLong(
-                                value(
-                                        record,
-                                        "fingerprintId"
-                                )
+                                value(record, "fingerprintId")
                         )
                 );
                 documento.put(
                         "codigoTutorHash",
-                        value(
-                                record,
-                                "codigoTutorHash"
-                        )
+                        value(record, "codigoTutorHash")
                 );
 
                 Map<String, Object> tutor =
@@ -250,7 +258,8 @@ public class AlumnoService {
             CSVRecord record,
             String name
     ) {
-        String value = value(record, name);
+        String value =
+                value(record, name);
 
         if (value.isBlank()) {
             throw new IllegalArgumentException(

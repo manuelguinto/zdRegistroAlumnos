@@ -93,3 +93,17 @@ Invoke-RestMethod `
 
 - Clases Java reformateadas para mejor lectura y mantenimiento.
 - Sin cambios funcionales respecto a la lógica de la versión v4.
+
+
+## Cambios v6
+
+- Nuevo parámetro Firestore: `requiereAutorizacionSalida`.
+- Si `requiereAutorizacionSalida = false`, la segunda lectura del día registra salida sin validar autorización.
+- Si `requiereAutorizacionSalida = true`, se conserva:
+  - salida normal por horario,
+  - autorización por alumno,
+  - autorización por grupo.
+- El valor `minutosToleranciaSalida` sigue siendo parametrizable.
+- Si no existe el `fingerprintId`, se responde `Alumno no registrado`.
+- La consulta construye `nombreCompleto` con nombre + apellidos cuando el campo no exista.
+- Los datos de autorización en la consulta se muestran únicamente cuando el registro contiene `idAutorizacion`.
