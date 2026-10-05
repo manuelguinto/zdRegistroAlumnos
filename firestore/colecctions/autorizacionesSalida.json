@@ -1,0 +1,10 @@
+{
+  "idAutorizacion": "AUT-000001",
+  "tipo": "Alumno/Grupo",
+  "fingerprintId": 125,
+
+  "idUsuarioAutoriza": "TMARTINEZ",
+  "fechaHoraAutorizacion": "2026-10-04T10:25:00-06:00",
+  "motivo": "Solicitud del tutor",
+  "activa": true
+}

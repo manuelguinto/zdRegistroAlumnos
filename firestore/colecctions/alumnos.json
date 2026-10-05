@@ -1,0 +1,25 @@
+{
+  "idAlumno": "AL-0001",
+  "nombre": "Manuel",
+  "apellidoPaterno": "Guinto",
+  "apellidoMaterno": "Guinto",
+  "nombreCompleto": "Manuel Guinto Guinto",
+
+  "idGrupo": "3",
+  "fingerprintId": 125,
+
+  "codigoTutorHash": "HASH_DEL_CODIGO",
+
+  "tutor": {
+    "nombre": "María López Hernández",
+    "parentesco": "Madre",
+    "telefono": "7441234567",
+    "telefonoAlternativo": "7449876543",
+    "correo": "correo@ejemplo.com"
+  },
+
+  "activo": true,
+
+  "fechaRegistro": "2026-10-04T15:00:00Z",
+  "fechaActualizacion": "2026-10-04T15:00:00Z"
+}

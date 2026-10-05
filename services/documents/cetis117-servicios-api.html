@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CETIS 117 - Documentación de Servicios REST</title>
+<style>
+    :root {
+        --guinda: #7b1e2b;
+        --guinda-oscuro: #5b121d;
+        --dorado: #d5a23a;
+        --crema: #f7f2e8;
+        --crema-2: #fffaf2;
+        --texto: #2b2527;
+        --gris: #6e6668;
+        --borde: #eadfce;
+        --verde: #1f7a4c;
+        --verde-fondo: #e8f7ee;
+        --azul: #245b9b;
+        --azul-fondo: #eef5ff;
+        --rojo-fondo: #fff0f0;
+        --sombra: 0 8px 24px rgba(76, 44, 34, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        color: var(--texto);
+        background: linear-gradient(180deg, #f7f2e8 0%, #ffffff 100%);
+        line-height: 1.55;
+    }
+
+    .container {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 28px 20px 60px;
+    }
+
+    .header {
+        background: #fff;
+        border: 1px solid var(--borde);
+        border-radius: 20px;
+        padding: 28px 30px;
+        box-shadow: var(--sombra);
+        margin-bottom: 24px;
+        border-left: 8px solid var(--guinda);
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 10px;
+    }
+
+    .logo {
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--guinda), var(--dorado));
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        letter-spacing: 1px;
+        box-shadow: 0 6px 14px rgba(123, 30, 43, .18);
+    }
+
+    h1 {
+        margin: 0;
+        color: var(--guinda);
+        font-size: 30px;
+    }
+
+    .subtitle {
+        margin: 4px 0 0;
+        color: var(--gris);
+    }
+
+    .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--crema-2);
+        border: 1px solid var(--borde);
+        color: var(--guinda-oscuro);
+        border-radius: 999px;
+        padding: 7px 12px;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .toc, .service {
+        background: #fff;
+        border: 1px solid var(--borde);
+        border-radius: 18px;
+        box-shadow: var(--sombra);
+        margin-bottom: 22px;
+        overflow: hidden;
+    }
+
+    .toc {
+        padding: 22px 26px;
+    }
+
+    .toc h2 {
+        margin-top: 0;
+        color: var(--guinda);
+    }
+
+    .toc a {
+        color: var(--guinda);
+        text-decoration: none;
+        font-weight: 700;
+    }
+
+    .toc ul {
+        margin-bottom: 0;
+    }
+
+    .service-header {
+        padding: 20px 24px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        background: linear-gradient(90deg, #fffaf2, #ffffff);
+        border-bottom: 1px solid var(--borde);
+    }
+
+    .method {
+        min-width: 76px;
+        text-align: center;
+        color: white;
+        padding: 7px 10px;
+        border-radius: 9px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: .4px;
+    }
+
+    .post { background: var(--guinda); }
+    .get { background: var(--azul); }
+    .delete { background: #a12e2e; }
+
+    .endpoint {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 17px;
+        color: var(--guinda-oscuro);
+        word-break: break-word;
+        font-weight: 700;
+    }
+
+    .service-body {
+        padding: 22px 24px 26px;
+    }
+
+    h2, h3 {
+        color: var(--guinda);
+    }
+
+    h3 {
+        margin-top: 24px;
+        margin-bottom: 10px;
+    }
+
+    .description {
+        background: var(--crema-2);
+        border: 1px solid var(--borde);
+        border-radius: 12px;
+        padding: 14px 16px;
+    }
+
+    .note {
+        background: var(--azul-fondo);
+        border-left: 4px solid var(--azul);
+        padding: 12px 14px;
+        border-radius: 10px;
+        margin-top: 12px;
+    }
+
+    .success-note {
+        background: var(--verde-fondo);
+        border-left: 4px solid var(--verde);
+        padding: 12px 14px;
+        border-radius: 10px;
+        margin-top: 12px;
+    }
+
+    pre {
+        background: #1f1b1c;
+        color: #f7f2e8;
+        padding: 16px;
+        border-radius: 12px;
+        overflow-x: auto;
+        font-size: 13px;
+        line-height: 1.45;
+        border: 1px solid #3a3032;
+    }
+
+    code {
+        font-family: Consolas, Monaco, monospace;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+        font-size: 14px;
+    }
+
+    th, td {
+        border: 1px solid var(--borde);
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    th {
+        background: var(--crema);
+        color: var(--guinda-oscuro);
+    }
+
+    .footer {
+        text-align: center;
+        color: var(--gris);
+        padding: 18px 0 4px;
+        font-size: 13px;
+    }
+
+    @media (max-width: 700px) {
+        .service-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+        h1 { font-size: 24px; }
+        .container { padding: 16px 12px 40px; }
+        .header, .toc, .service-body { padding-left: 18px; padding-right: 18px; }
+        table { font-size: 12px; }
+    }
+</style>
+</head>
+<body>
+<div class="container">
+
+    <section class="header">
+        <div class="brand">
+            <div class="logo">117</div>
+            <div>
+                <h1>CETIS 117 - Servicios REST de Asistencia</h1>
+                <p class="subtitle">Documentación funcional del backend Spring Boot para ESP32 + GM60 + Firestore</p>
+            </div>
+        </div>
+        <div class="meta">
+            <span class="chip">Versión backend: v5</span>
+            <span class="chip">Base Firestore: zona-d</span>
+            <span class="chip">Puerto local: 8080</span>
+            <span class="chip">Formato: JSON / multipart</span>
+        </div>
+    </section>
+
+    <section class="toc">
+        <h2>Servicios incluidos</h2>
+        <ul>
+            <li><a href="#asistencia">Registrar entrada o salida por huella</a></li>
+            <li><a href="#autorizacion">Crear autorización de salida</a></li>
+            <li><a href="#importar">Importar alumnos desde CSV</a></li>
+            <li><a href="#consulta">Consultar alumno e historial</a></li>
+            <li><a href="#limpieza">Limpiar registros antiguos</a></li>
+        </ul>
+    </section>
+
+    <section class="service" id="asistencia">
+        <div class="service-header">
+            <span class="method post">POST</span>
+            <span class="endpoint">/api/asistencia/registrar</span>
+        </div>
+        <div class="service-body">
+            <h2>Registrar entrada o salida por huella</h2>
+
+            <div class="description">
+                Este es el servicio principal que consumirá el ESP32 después de que el lector GM60 identifique una huella.
+                El ESP32 solo envía el <code>fingerprintId</code>. El backend decide automáticamente si corresponde registrar
+                una entrada, una salida normal, una salida autorizada o si el alumno requiere autorización para poder salir.
+            </div>
+
+            <h3>Lógica</h3>
+            <table>
+                <tr><th>Situación</th><th>Resultado</th></tr>
+                <tr><td>No existe registro del alumno para el día actual</td><td>Se crea <b>EntradaRegistrada</b></td></tr>
+                <tr><td>Ya existe entrada y todavía no llega la ventana permitida de salida</td><td>Busca autorización por alumno y luego por grupo</td></tr>
+                <tr><td>No existe autorización</td><td>Devuelve <b>Requiere autorización de salida</b></td></tr>
+                <tr><td>Existe autorización</td><td>Registra <b>SalidaAutorizada</b> y guarda el <code>idAutorizacion</code></td></tr>
+                <tr><td>La hora actual es igual o mayor a horaSalida - minutosToleranciaSalida</td><td>Registra <b>SalidaRegistrada</b></td></tr>
+                <tr><td>Ya existen entrada y salida</td><td>No crea otro registro</td></tr>
+            </table>
+
+            <h3>Request</h3>
+            <pre><code>{
+  "fingerprintId": 1
+}</code></pre>
+
+            <h3>Response - entrada registrada</h3>
+            <pre><code>{
+  "resultado": "ENTRADA_REGISTRADA",
+  "mensaje": "Registro de entrada exitoso, bienvenido",
+  "estado": "EntradaRegistrada",
+  "idRegistro": "1_2026-10-04",
+  "idAutorizacion": null,
+  "nombreAlumno": "Manuel Damian Guinto Méndez"
+}</code></pre>
+
+            <h3>Response - requiere autorización</h3>
+            <pre><code>{
+  "resultado": "REQUIERE_AUTORIZACION",
+  "mensaje": "Requiere autorización de salida",
+  "estado": "EntradaRegistrada",
+  "idRegistro": "1_2026-10-04",
+  "idAutorizacion": null,
+  "nombreAlumno": "Manuel Damian Guinto Méndez"
+}</code></pre>
+
+            <h3>Response - salida autorizada</h3>
+            <pre><code>{
+  "resultado": "SALIDA_AUTORIZADA",
+  "mensaje": "Registro de salida exitosa, buen regreso a casa",
+  "estado": "SalidaAutorizada",
+  "idRegistro": "1_2026-10-04",
+  "idAutorizacion": "AUT-A1B2C3D4",
+  "nombreAlumno": "Manuel Damian Guinto Méndez"
+}</code></pre>
+
+            <h3>Response - salida normal</h3>
+            <pre><code>{
+  "resultado": "SALIDA_REGISTRADA",
+  "mensaje": "Registro de salida exitosa, buen regreso a casa",
+  "estado": "SalidaRegistrada",
+  "idRegistro": "1_2026-10-04",
+  "idAutorizacion": null,
+  "nombreAlumno": "Manuel Damian Guinto Méndez"
+}</code></pre>
+
+            <div class="success-note">
+                <b>Mensaje esperado en LCD:</b><br>
+                Si no puede salir: <code>Requiere autorización de salida</code><br>
+                Si la salida fue aceptada: <code>Registro de salida exitosa, buen regreso a casa</code>
+            </div>
+        </div>
+    </section>
+
+    <section class="service" id="autorizacion">
+        <div class="service-header">
+            <span class="method post">POST</span>
+            <span class="endpoint">/api/autorizaciones</span>
+        </div>
+        <div class="service-body">
+            <h2>Crear autorización de salida</h2>
+
+            <div class="description">
+                Crea una autorización temporal para permitir la salida anticipada de un alumno o de todos los alumnos de un grupo.
+                La autorización guarda quién autorizó, la hora de autorización y el motivo. Cuando posteriormente el alumno vuelva a
+                poner su huella, el servicio de asistencia localizará esta autorización.
+            </div>
+
+            <h3>Request - autorización por alumno</h3>
+            <pre><code>{
+  "tipo": "ALUMNO",
+  "fingerprintId": 1,
+  "idUsuarioAutoriza": "TMARTINEZ",
+  "motivo": "Solicitud del tutor"
+}</code></pre>
+
+            <h3>Response - autorización por alumno</h3>
+            <pre><code>{
+  "idAutorizacion": "AUT-A1B2C3D4",
+  "tipo": "ALUMNO",
+  "fingerprintId": 1,
+  "idGrupo": null,
+  "idUsuarioAutoriza": "TMARTINEZ",
+  "fechaHoraAutorizacion": "2026-10-04T20:15:30Z",
+  "motivo": "Solicitud del tutor",
+  "activa": true,
+  "fecha": "2026-10-04"
+}</code></pre>
+
+            <h3>Request - autorización por grupo</h3>
+            <pre><code>{
+  "tipo": "GRUPO",
+  "idGrupo": "3",
+  "idUsuarioAutoriza": "TMARTINEZ",
+  "motivo": "Salida anticipada del grupo"
+}</code></pre>
+
+            <h3>Response - autorización por grupo</h3>
+            <pre><code>{
+  "idAutorizacion": "AUT-E5F6G7H8",
+  "tipo": "GRUPO",
+  "fingerprintId": null,
+  "idGrupo": "3",
+  "idUsuarioAutoriza": "TMARTINEZ",
+  "fechaHoraAutorizacion": "2026-10-04T20:20:00Z",
+  "motivo": "Salida anticipada del grupo",
+  "activa": true,
+  "fecha": "2026-10-04"
+}</code></pre>
+
+            <div class="note">
+                El usuario que autoriza debe existir en <code>usuariosSistema</code> y estar activo.
+            </div>
+        </div>
+    </section>
+
+    <section class="service" id="importar">
+        <div class="service-header">
+            <span class="method post">POST</span>
+            <span class="endpoint">/api/alumnos/importar</span>
+        </div>
+        <div class="service-body">
+            <h2>Importación masiva de alumnos</h2>
+
+            <div class="description">
+                Recibe un archivo CSV mediante <code>multipart/form-data</code> y crea o actualiza documentos en la colección
+                <code>alumnos</code>. El identificador del documento es el valor de <code>idAlumno</code>.
+            </div>
+
+            <h3>Request</h3>
+            <p>Tipo: <code>multipart/form-data</code></p>
+            <p>Nombre de la parte: <code>file</code></p>
+
+            <pre><code>POST /api/alumnos/importar
+
+form-data:
+file = alumnos.csv</code></pre>
+
+            <h3>Encabezados esperados del CSV</h3>
+            <pre><code>idAlumno,nombre,apellidoPaterno,apellidoMaterno,nombreCompleto,idGrupo,fingerprintId,codigoTutorHash,tutorNombre,tutorParentesco,tutorTelefono,tutorTelefonoAlternativo,tutorCorreo</code></pre>
+
+            <h3>Response</h3>
+            <pre><code>{
+  "registrosImportados": 400
+}</code></pre>
+
+            <div class="note">
+                El servicio registra automáticamente <code>activo = true</code>, <code>fechaRegistro</code> y
+                <code>fechaActualizacion</code>.
+            </div>
+        </div>
+    </section>
+
+    <section class="service" id="consulta">
+        <div class="service-header">
+            <span class="method get">GET</span>
+            <span class="endpoint">/api/alumnos/consulta</span>
+        </div>
+        <div class="service-body">
+            <h2>Consultar alumno e historial de asistencia</h2>
+
+            <div class="description">
+                Permite consultar la información de asistencia del alumno. Si el código pertenece a un tutor, solo devuelve
+                el alumno asociado a ese código. Si el código pertenece a un usuario de <code>usuariosSistema</code>, puede consultar
+                todos los alumnos y opcionalmente filtrar por nombre.
+            </div>
+
+            <h3>Request - tutor</h3>
+            <pre><code>GET /api/alumnos/consulta?codigo=147896325</code></pre>
+
+            <h3>Request - usuario del sistema con filtro</h3>
+            <pre><code>GET /api/alumnos/consulta?codigo=SUPERCODIGO&amp;nombre=Manuel</code></pre>
+
+            <h3>Response</h3>
+            <pre><code>[
+  {
+    "idAlumno": "AL-0001",
+    "nombreCompleto": "Manuel Damian Guinto Méndez",
+    "idGrupo": "3",
+    "tutor": {
+      "nombre": "Manuel Salvador Guinto",
+      "parentesco": "Padre",
+      "telefono": "7814520659",
+      "telefonoAlternativo": "7814521225",
+      "correo": "manuel.guinto@gmail.com"
+    },
+    "registros": [
+      {
+        "fecha": "2026-10-04",
+        "horaEntrada": "07:42",
+        "horaSalida": "10:35",
+        "estado": "SalidaAutorizada",
+        "nombreAutoriza": "Tania Martinez",
+        "motivo": "Solicitud del tutor"
+      },
+      {
+        "fecha": "2026-10-03",
+        "horaEntrada": "07:39",
+        "horaSalida": "13:45",
+        "estado": "SalidaRegistrada",
+        "nombreAutoriza": null,
+        "motivo": null
+      }
+    ]
+  }
+]</code></pre>
+
+            <div class="success-note">
+                Cuando una salida no requirió autorización, <code>nombreAutoriza</code> y <code>motivo</code> se devuelven en blanco
+                (<code>null</code>). Cuando sí hubo autorización, el backend obtiene esos datos a partir del <code>idAutorizacion</code>.
+            </div>
+        </div>
+    </section>
+
+    <section class="service" id="limpieza">
+        <div class="service-header">
+            <span class="method delete">DELETE</span>
+            <span class="endpoint">/api/registros/limpieza?dias=7</span>
+        </div>
+        <div class="service-body">
+            <h2>Limpieza de registros antiguos</h2>
+
+            <div class="description">
+                Elimina de la colección <code>registro</code> los documentos cuya fecha de entrada sea anterior al número de días
+                que se desea conservar. El valor predeterminado es 7 días si no se envía el parámetro.
+            </div>
+
+            <h3>Request</h3>
+            <pre><code>DELETE /api/registros/limpieza?dias=7</code></pre>
+
+            <h3>Response</h3>
+            <pre><code>{
+  "eliminados": 128,
+  "diasConservados": 7
+}</code></pre>
+
+            <div class="note">
+                Si no se especifica <code>dias</code>, el servicio utiliza 7.
+            </div>
+        </div>
+    </section>
+
+    <section class="toc">
+        <h2>Parámetro de negocio usado por la salida</h2>
+        <p>
+            La colección <code>systemParams</code> contiene el parámetro
+            <code>minutosToleranciaSalida</code>. El backend lo consulta directamente en Firestore.
+            Si el valor es 20 y el grupo tiene hora de salida 14:00, el alumno puede salir sin autorización desde las 13:40.
+        </p>
+
+        <pre><code>{
+  "minutosToleranciaSalida": 20
+}</code></pre>
+    </section>
+
+    <div class="footer">
+        CETIS 117 · Proyecto de registro de asistencia con huella digital
+    </div>
+
+</div>
+</body>
+</html>
