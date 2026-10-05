@@ -75,7 +75,7 @@ export default function LoginView({
                 </p>
 
                 <h2 className="mt-1 text-3xl font-black text-cetis-wine">
-                  Consulta de asistencia
+                  Control de asistencia
                 </h2>
 
                 <p className="mt-2 text-sm leading-6 text-cetis-muted">
