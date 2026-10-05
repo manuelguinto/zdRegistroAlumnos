@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "public": "fe/cetis117-registro-alumnos-react-v1/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
