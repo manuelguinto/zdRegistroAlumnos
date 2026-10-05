@@ -1,0 +1,95 @@
+# CETIS 117 - Asistencia por huella v5
+
+Versión corregida para el mismo proyecto/base Firestore de Zona D.
+
+## Firestore
+
+La conexión usa directamente:
+
+- Project ID: `zona-d`
+- Database ID: `zona-d`
+
+No necesita `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_DATABASE_ID`,
+`SYSTEM_PARAMS_DOCUMENT_ID` ni `APP_ZONE_ID`.
+
+`systemParams` sigue siendo una colección de Firestore de negocio y se consulta
+directamente para obtener `minutosToleranciaSalida`.
+
+Si no existe el parámetro o falla la lectura, se usa 20 minutos como respaldo.
+
+## Ejecutar localmente
+
+### 1. Autenticación local con Google
+
+```powershell
+gcloud auth application-default login
+gcloud config set project zona-d
+```
+
+### 2. Compilar
+
+```powershell
+mvn clean compile
+```
+
+### 3. Ejecutar
+
+```powershell
+mvn spring-boot:run
+```
+
+Servidor:
+`http://localhost:8080`
+
+## Prueba de asistencia
+
+```powershell
+Invoke-RestMethod `
+  -Method POST `
+  -Uri "http://localhost:8080/api/asistencia/registrar" `
+  -ContentType "application/json" `
+  -Body '{"fingerprintId":1}'
+```
+
+## Crear autorización por alumno
+
+```powershell
+Invoke-RestMethod `
+  -Method POST `
+  -Uri "http://localhost:8080/api/autorizaciones" `
+  -ContentType "application/json" `
+  -Body '{
+    "tipo":"ALUMNO",
+    "fingerprintId":1,
+    "idUsuarioAutoriza":"TMARTINEZ",
+    "motivo":"Solicitud del tutor"
+  }'
+```
+
+## Crear autorización por grupo
+
+```powershell
+Invoke-RestMethod `
+  -Method POST `
+  -Uri "http://localhost:8080/api/autorizaciones" `
+  -ContentType "application/json" `
+  -Body '{
+    "tipo":"GRUPO",
+    "idGrupo":"3",
+    "idUsuarioAutoriza":"TMARTINEZ",
+    "motivo":"Salida anticipada del grupo"
+  }'
+```
+
+## Correcciones v5
+
+- Corregido error `QueryDocumentSnapshot` vs `DocumentSnapshot`.
+- Corregida variable `zone` no definida.
+- Firestore queda configurado directamente como en el proyecto de fichas.
+- Eliminadas dependencias de variables de entorno para Firestore.
+- `systemParams` se lee directamente desde Firestore.
+
+## Versión v5
+
+- Clases Java reformateadas para mejor lectura y mantenimiento.
+- Sin cambios funcionales respecto a la lógica de la versión v4.
