@@ -8,6 +8,7 @@ import mx.edu.cetis117.asistencia.dto.CrearAutorizacionRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,7 +17,8 @@ import java.util.UUID;
 @Service
 public class AutorizacionService {
 
-    private static final ZoneId ZONE_ID = ZoneId.of("America/Mexico_City");
+    private static final ZoneId ZONE_ID =
+            ZoneId.of("America/Mexico_City");
 
     private final Firestore firestore;
     private final AlumnoService alumnoService;
@@ -36,25 +38,80 @@ public class AutorizacionService {
             CrearAutorizacionRequest request
     ) throws Exception {
 
-        String tipo = request.tipo().trim().toUpperCase();
+        String tipo =
+                request.tipo().trim().toUpperCase();
 
-        if (!tipo.equals("ALUMNO") && !tipo.equals("GRUPO")) {
+        if (!tipo.equals("ALUMNO")
+                && !tipo.equals("GRUPO")
+                && !tipo.equals("GENERAL")) {
+
             throw new IllegalArgumentException(
-                    "tipo debe ser ALUMNO o GRUPO"
+                    "tipo debe ser ALUMNO, GRUPO o GENERAL"
             );
         }
 
         if (usuarioSistemaService
-                .buscarPorIdUsuario(request.idUsuarioAutoriza()) == null) {
+                .buscarPorIdUsuario(
+                        request.idUsuarioAutoriza()
+                ) == null) {
 
             throw new IllegalArgumentException(
                     "Usuario autorizador no encontrado o inactivo"
             );
         }
 
+        String hoy =
+                LocalDate.now(ZONE_ID).toString();
+
+        /*
+         * Si ya existe una salida GENERAL activa para el día,
+         * no tiene sentido crear autorizaciones adicionales
+         * por alumno o por grupo.
+         */
+        if (tipo.equals("ALUMNO")
+                || tipo.equals("GRUPO")) {
+
+            DocumentSnapshot salidaGeneralExistente =
+                    buscarAutorizacionGeneralDelDia();
+
+            if (salidaGeneralExistente != null) {
+
+                Map<String, Object> respuesta =
+                        new HashMap<>();
+
+                respuesta.put(
+                        "resultado",
+                        "SALIDA_GENERAL_YA_AUTORIZADA"
+                );
+
+                respuesta.put(
+                        "mensaje",
+                        "Ya existe una salida general autorizada para hoy"
+                );
+
+                respuesta.put(
+                        "idAutorizacion",
+                        salidaGeneralExistente.getString(
+                                "idAutorizacion"
+                        )
+                );
+
+                respuesta.put(
+                        "horaSalidaGeneral",
+                        salidaGeneralExistente.getString(
+                                "horaSalidaGeneral"
+                        )
+                );
+
+                return respuesta;
+            }
+        }
+
         String iniciales = null;
+        String horaSalidaGeneral = null;
 
         if (tipo.equals("ALUMNO")) {
+
             if (request.iniciales() == null
                     || request.iniciales().isBlank()) {
 
@@ -64,7 +121,9 @@ public class AutorizacionService {
             }
 
             DocumentSnapshot alumno =
-                    alumnoService.buscarPorIniciales(request.iniciales());
+                    alumnoService.buscarPorIniciales(
+                            request.iniciales()
+                    );
 
             if (alumno == null) {
                 throw new IllegalArgumentException(
@@ -72,13 +131,20 @@ public class AutorizacionService {
                 );
             }
 
-            iniciales = alumnoService.obtenerIniciales(alumno);
+            iniciales =
+                    alumnoService.obtenerIniciales(
+                            alumno
+                    );
 
             DocumentSnapshot autorizacionExistente =
-                    buscarAutorizacionAlumnoDelDia(iniciales);
+                    buscarAutorizacionAlumnoDelDia(
+                            iniciales
+                    );
 
             if (autorizacionExistente != null) {
-                Map<String, Object> respuesta = new HashMap<>();
+                Map<String, Object> respuesta =
+                        new HashMap<>();
+
                 respuesta.put(
                         "resultado",
                         "AUTORIZACION_EXISTENTE"
@@ -89,62 +155,162 @@ public class AutorizacionService {
                 );
                 respuesta.put(
                         "idAutorizacion",
-                        autorizacionExistente.getString("idAutorizacion")
+                        autorizacionExistente.getString(
+                                "idAutorizacion"
+                        )
                 );
                 respuesta.put(
                         "iniciales",
                         iniciales
                 );
+
                 return respuesta;
             }
         }
 
-        if (tipo.equals("GRUPO")
-                && (request.idGrupo() == null
-                || request.idGrupo().isBlank())) {
-
-            throw new IllegalArgumentException(
-                    "idGrupo es obligatorio para autorización por GRUPO"
-            );
-        }
-
-
         if (tipo.equals("GRUPO")) {
-            String hoy = LocalDate.now(ZONE_ID).toString();
+
+            if (request.idGrupo() == null
+                    || request.idGrupo().isBlank()) {
+
+                throw new IllegalArgumentException(
+                        "idGrupo es obligatorio para autorización por GRUPO"
+                );
+            }
 
             QuerySnapshot autorizacionesGrupo = firestore
                     .collection("autorizacionesSalida")
-                    .whereEqualTo("tipo", "GRUPO")
-                    .whereEqualTo("idGrupo", request.idGrupo())
                     .whereEqualTo("fecha", hoy)
-                    .limit(1)
                     .get()
                     .get();
 
-            if (!autorizacionesGrupo.isEmpty()) {
-                Map<String, Object> respuesta = new HashMap<>();
-                respuesta.put("resultado", "AUTORIZACION_GRUPO_EXISTENTE");
-                respuesta.put("mensaje", "Grupo ya fue autorizado previamente");
-                return respuesta;
+            for (DocumentSnapshot autorizacion
+                    : autorizacionesGrupo.getDocuments()) {
+
+                if (!Boolean.TRUE.equals(
+                        autorizacion.getBoolean("activa")
+                )) {
+                    continue;
+                }
+
+                if (!"GRUPO".equals(
+                        autorizacion.getString("tipo")
+                )) {
+                    continue;
+                }
+
+                if (request.idGrupo().equals(
+                        String.valueOf(
+                                autorizacion.get("idGrupo")
+                        )
+                )) {
+                    Map<String, Object> respuesta =
+                            new HashMap<>();
+
+                    respuesta.put(
+                            "resultado",
+                            "AUTORIZACION_GRUPO_EXISTENTE"
+                    );
+                    respuesta.put(
+                            "mensaje",
+                            "Grupo ya fue autorizado previamente"
+                    );
+
+                    return respuesta;
+                }
             }
         }
 
-        String id = "AUT-" + UUID
-                .randomUUID()
-                .toString()
-                .substring(0, 8)
-                .toUpperCase();
+        if (tipo.equals("GENERAL")) {
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("idAutorizacion", id);
-        data.put("tipo", tipo);
+            if (request.horaSalidaGeneral() == null
+                    || request.horaSalidaGeneral().isBlank()) {
+
+                throw new IllegalArgumentException(
+                        "horaSalidaGeneral es obligatorio para autorización GENERAL"
+                );
+            }
+
+            try {
+                LocalTime.parse(
+                        request.horaSalidaGeneral().trim()
+                );
+            } catch (Exception exception) {
+                throw new IllegalArgumentException(
+                        "horaSalidaGeneral debe tener formato HH:mm"
+                );
+            }
+
+            DocumentSnapshot generalExistente =
+                    buscarAutorizacionGeneralDelDia();
+
+            if (generalExistente != null) {
+                Map<String, Object> respuesta =
+                        new HashMap<>();
+
+                respuesta.put(
+                        "resultado",
+                        "AUTORIZACION_GENERAL_EXISTENTE"
+                );
+                respuesta.put(
+                        "mensaje",
+                        "La salida general ya fue autorizada previamente"
+                );
+                respuesta.put(
+                        "idAutorizacion",
+                        generalExistente.getString(
+                                "idAutorizacion"
+                        )
+                );
+                respuesta.put(
+                        "horaSalidaGeneral",
+                        generalExistente.getString(
+                                "horaSalidaGeneral"
+                        )
+                );
+
+                return respuesta;
+            }
+
+            horaSalidaGeneral =
+                    request.horaSalidaGeneral().trim();
+        }
+
+        String id =
+                "AUT-"
+                        + UUID.randomUUID()
+                        .toString()
+                        .substring(0, 8)
+                        .toUpperCase();
+
+        Map<String, Object> data =
+                new HashMap<>();
+
+        data.put(
+                "idAutorizacion",
+                id
+        );
+        data.put(
+                "tipo",
+                tipo
+        );
         data.put(
                 "iniciales",
-                tipo.equals("ALUMNO") ? iniciales : null
+                tipo.equals("ALUMNO")
+                        ? iniciales
+                        : null
         );
         data.put(
                 "idGrupo",
-                tipo.equals("GRUPO") ? request.idGrupo() : null
+                tipo.equals("GRUPO")
+                        ? request.idGrupo()
+                        : null
+        );
+        data.put(
+                "horaSalidaGeneral",
+                tipo.equals("GENERAL")
+                        ? horaSalidaGeneral
+                        : null
         );
         data.put(
                 "idUsuarioAutoriza",
@@ -154,11 +320,17 @@ public class AutorizacionService {
                 "fechaHoraAutorizacion",
                 Timestamp.now()
         );
-        data.put("motivo", request.motivo());
-        data.put("activa", true);
+        data.put(
+                "motivo",
+                request.motivo()
+        );
+        data.put(
+                "activa",
+                true
+        );
         data.put(
                 "fecha",
-                LocalDate.now(ZONE_ID).toString()
+                hoy
         );
 
         firestore
@@ -167,8 +339,17 @@ public class AutorizacionService {
                 .set(data)
                 .get();
 
-        data.put("resultado", "AUTORIZACION_CREADA");
-        data.put("mensaje", "Autorización registrada correctamente");
+        data.put(
+                "resultado",
+                "AUTORIZACION_CREADA"
+        );
+
+        data.put(
+                "mensaje",
+                tipo.equals("GENERAL")
+                        ? "Salida general autorizada correctamente"
+                        : "Autorización registrada correctamente"
+        );
 
         return data;
     }
@@ -178,7 +359,8 @@ public class AutorizacionService {
             String idGrupo
     ) throws Exception {
 
-        String hoy = LocalDate.now(ZONE_ID).toString();
+        String hoy =
+                LocalDate.now(ZONE_ID).toString();
 
         QuerySnapshot autorizaciones = firestore
                 .collection("autorizacionesSalida")
@@ -195,12 +377,13 @@ public class AutorizacionService {
                 continue;
             }
 
-            String tipo = autorizacion.getString("tipo");
-
-            if ("ALUMNO".equals(tipo)
+            if ("ALUMNO".equals(
+                    autorizacion.getString("tipo")
+            )
                     && iniciales.equals(
                     autorizacion.getString("iniciales")
             )) {
+
                 return autorizacion;
             }
         }
@@ -214,11 +397,45 @@ public class AutorizacionService {
                 continue;
             }
 
-            String tipo = autorizacion.getString("tipo");
-
-            if ("GRUPO".equals(tipo)
+            if ("GRUPO".equals(
+                    autorizacion.getString("tipo")
+            )
                     && idGrupo.equals(
-                    String.valueOf(autorizacion.get("idGrupo"))
+                    String.valueOf(
+                            autorizacion.get("idGrupo")
+                    )
+            )) {
+
+                return autorizacion;
+            }
+        }
+
+        return null;
+    }
+
+    public DocumentSnapshot buscarAutorizacionGeneralDelDia()
+            throws Exception {
+
+        String hoy =
+                LocalDate.now(ZONE_ID).toString();
+
+        QuerySnapshot autorizaciones = firestore
+                .collection("autorizacionesSalida")
+                .whereEqualTo("fecha", hoy)
+                .get()
+                .get();
+
+        for (DocumentSnapshot autorizacion
+                : autorizaciones.getDocuments()) {
+
+            if (!Boolean.TRUE.equals(
+                    autorizacion.getBoolean("activa")
+            )) {
+                continue;
+            }
+
+            if ("GENERAL".equals(
+                    autorizacion.getString("tipo")
             )) {
                 return autorizacion;
             }
@@ -231,7 +448,8 @@ public class AutorizacionService {
             String iniciales
     ) throws Exception {
 
-        String hoy = LocalDate.now(ZONE_ID).toString();
+        String hoy =
+                LocalDate.now(ZONE_ID).toString();
 
         QuerySnapshot autorizaciones = firestore
                 .collection("autorizacionesSalida")

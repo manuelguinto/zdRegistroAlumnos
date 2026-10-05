@@ -6,6 +6,7 @@ public record GrupoResponse(
         String horaSalida,
         Boolean activo,
         String estadoSalida,
-        Boolean salidaHabilitada
+        Boolean salidaHabilitada,
+        String horaSalidaEfectiva
 ) {
 }

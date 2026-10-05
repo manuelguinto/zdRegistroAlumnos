@@ -6,6 +6,7 @@ public record CrearAutorizacionRequest(
         @NotBlank String tipo,
         String iniciales,
         String idGrupo,
+        String horaSalidaGeneral,
         @NotBlank String idUsuarioAutoriza,
         @NotBlank String motivo
 ) {

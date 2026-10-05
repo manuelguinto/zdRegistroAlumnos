@@ -5,10 +5,12 @@ mx\edu\cetis117\asistencia\dto\RegistroHuellaRequest.class
 mx\edu\cetis117\asistencia\dto\CrearAutorizacionRequest.class
 mx\edu\cetis117\asistencia\service\LimpiezaService.class
 mx\edu\cetis117\asistencia\service\AsistenciaService.class
+mx\edu\cetis117\asistencia\service\ConsultaService$DatosAutorizacion.class
 mx\edu\cetis117\asistencia\controller\ApiExceptionHandler.class
 mx\edu\cetis117\asistencia\config\FirestoreConfig.class
 mx\edu\cetis117\asistencia\service\AutorizacionService.class
 mx\edu\cetis117\asistencia\service\ConsultaService.class
+mx\edu\cetis117\asistencia\service\GrupoService$EstadoAutorizaciones.class
 mx\edu\cetis117\asistencia\controller\AsistenciaController.class
 mx\edu\cetis117\asistencia\service\GrupoService.class
 mx\edu\cetis117\asistencia\dto\AsistenciaResponse.class

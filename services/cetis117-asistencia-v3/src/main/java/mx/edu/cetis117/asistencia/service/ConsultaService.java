@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,18 +44,24 @@ public class ConsultaService {
     ) throws Exception {
 
         DocumentSnapshot superUsuario =
-                usuarioSistemaService.buscarPorCodigo(codigo);
+                usuarioSistemaService.buscarPorCodigo(
+                        codigo
+                );
 
-        List<DocumentSnapshot> alumnos = new ArrayList<>();
+        List<DocumentSnapshot> alumnos =
+                new ArrayList<>();
 
         if (superUsuario != null) {
+
             QuerySnapshot query = firestore
                     .collection("alumnos")
                     .whereEqualTo("activo", true)
                     .get()
                     .get();
 
-            for (QueryDocumentSnapshot documento : query.getDocuments()) {
+            for (QueryDocumentSnapshot documento
+                    : query.getDocuments()) {
+
                 if (!cumpleFiltros(
                         documento,
                         nombre,
@@ -68,8 +75,11 @@ public class ConsultaService {
             }
 
         } else {
+
             DocumentSnapshot alumno =
-                    alumnoService.buscarPorCodigoTutor(codigo);
+                    alumnoService.buscarPorCodigoTutor(
+                            codigo
+                    );
 
             if (alumno == null) {
                 return List.of();
@@ -78,10 +88,21 @@ public class ConsultaService {
             alumnos.add(alumno);
         }
 
-        List<ConsultaAlumnoResponse> salida = new ArrayList<>();
+        Map<String, DocumentSnapshot> salidasGenerales =
+                obtenerSalidasGeneralesPorFecha();
 
-        for (DocumentSnapshot alumno : alumnos) {
-            salida.add(mapAlumno(alumno));
+        List<ConsultaAlumnoResponse> salida =
+                new ArrayList<>();
+
+        for (DocumentSnapshot alumno
+                : alumnos) {
+
+            salida.add(
+                    mapAlumno(
+                            alumno,
+                            salidasGenerales
+                    )
+            );
         }
 
         salida.sort(
@@ -103,35 +124,55 @@ public class ConsultaService {
             String iniciales
     ) {
 
-        if (nombre != null && !nombre.isBlank()) {
+        if (nombre != null
+                && !nombre.isBlank()) {
+
             String nombreCompleto =
-                    alumnoService.obtenerNombreCompleto(alumno);
+                    alumnoService.obtenerNombreCompleto(
+                            alumno
+                    );
 
             if (!nombreCompleto
                     .toLowerCase()
-                    .contains(nombre.trim().toLowerCase())) {
+                    .contains(
+                            nombre.trim().toLowerCase()
+                    )) {
 
                 return false;
             }
         }
 
-        if (idGrupo != null && !idGrupo.isBlank()) {
+        if (idGrupo != null
+                && !idGrupo.isBlank()) {
+
             String grupoAlumno =
-                    String.valueOf(alumno.get("idGrupo"));
+                    String.valueOf(
+                            alumno.get("idGrupo")
+                    );
 
-            if (!grupoAlumno.equals(idGrupo.trim())) {
+            if (!grupoAlumno.equals(
+                    idGrupo.trim()
+            )) {
                 return false;
             }
         }
 
-        if (iniciales != null && !iniciales.isBlank()) {
+        if (iniciales != null
+                && !iniciales.isBlank()) {
+
             String inicialesAlumno =
-                    alumnoService.obtenerIniciales(alumno);
+                    alumnoService.obtenerIniciales(
+                            alumno
+                    );
 
             String filtroIniciales =
-                    alumnoService.normalizarClaveIniciales(iniciales);
+                    alumnoService.normalizarClaveIniciales(
+                            iniciales
+                    );
 
-            if (!inicialesAlumno.equals(filtroIniciales)) {
+            if (!inicialesAlumno.equals(
+                    filtroIniciales
+            )) {
                 return false;
             }
         }
@@ -140,7 +181,8 @@ public class ConsultaService {
     }
 
     private ConsultaAlumnoResponse mapAlumno(
-            DocumentSnapshot alumno
+            DocumentSnapshot alumno,
+            Map<String, DocumentSnapshot> salidasGenerales
     ) throws Exception {
 
         Long fingerprintId =
@@ -148,70 +190,144 @@ public class ConsultaService {
 
         QuerySnapshot registros = firestore
                 .collection("registro")
-                .whereEqualTo("fingerprintId", fingerprintId)
+                .whereEqualTo(
+                        "fingerprintId",
+                        fingerprintId
+                )
                 .get()
                 .get();
 
-        List<ConsultaRegistroDto> filas = new ArrayList<>();
+        List<ConsultaRegistroDto> filas =
+                new ArrayList<>();
 
-        for (DocumentSnapshot registro : registros.getDocuments()) {
+        for (DocumentSnapshot registro
+                : registros.getDocuments()) {
+
+            String fecha =
+                    FirestoreUtil.fecha(
+                            registro.get(
+                                    "fechaHoraEntrada"
+                            ),
+                            ZONE_ID
+                    );
+
+            String horaEntrada =
+                    FirestoreUtil.hora(
+                            registro.get(
+                                    "fechaHoraEntrada"
+                            ),
+                            ZONE_ID
+                    );
+
+            String horaSalida =
+                    FirestoreUtil.hora(
+                            registro.get(
+                                    "fechaHoraSalida"
+                            ),
+                            ZONE_ID
+                    );
+
+            String estado =
+                    registro.getString("estado");
 
             String nombreAutoriza = null;
             String motivo = null;
 
             String idAutorizacion =
-                    registro.getString("idAutorizacion");
+                    registro.getString(
+                            "idAutorizacion"
+                    );
 
-            if (idAutorizacion != null
-                    && !idAutorizacion.isBlank()) {
+            /*
+             * Prioridad 1:
+             * Si existe salida real, nunca se sustituye por
+             * una salida general.
+             */
+            if (horaSalida != null) {
 
-                DocumentSnapshot autorizacion = firestore
-                        .collection("autorizacionesSalida")
-                        .document(idAutorizacion)
-                        .get()
-                        .get();
+                if (idAutorizacion != null
+                        && !idAutorizacion.isBlank()) {
 
-                if (autorizacion.exists()) {
-                    motivo = autorizacion.getString("motivo");
-
-                    String idUsuario =
-                            autorizacion.getString(
-                                    "idUsuarioAutoriza"
+                    DatosAutorizacion datos =
+                            obtenerDatosAutorizacion(
+                                    idAutorizacion
                             );
 
-                    if (idUsuario != null) {
-                        QuerySnapshot usuarioQuery = firestore
-                                .collection("usuariosSistema")
-                                .whereEqualTo("idUsuario", idUsuario)
-                                .limit(1)
-                                .get()
-                                .get();
+                    nombreAutoriza =
+                            datos.nombreAutoriza();
 
-                        if (!usuarioQuery.isEmpty()) {
-                            nombreAutoriza = usuarioQuery
-                                    .getDocuments()
-                                    .get(0)
-                                    .getString("nombre");
-                        }
+                    motivo =
+                            datos.motivo();
+                }
+
+            } else {
+
+                /*
+                 * Prioridad 2:
+                 * Si el registro ya tiene una autorización individual
+                 * o de grupo asociada, se conserva esa referencia.
+                 */
+                if (idAutorizacion != null
+                        && !idAutorizacion.isBlank()) {
+
+                    DatosAutorizacion datos =
+                            obtenerDatosAutorizacion(
+                                    idAutorizacion
+                            );
+
+                    nombreAutoriza =
+                            datos.nombreAutoriza();
+
+                    motivo =
+                            datos.motivo();
+
+                } else {
+
+                    /*
+                     * Prioridad 3:
+                     * Salida GENERAL virtual.
+                     *
+                     * No modifica el documento "registro".
+                     * Solo se aplica si hubo entrada y no existe
+                     * una salida real.
+                     */
+                    DocumentSnapshot salidaGeneral =
+                            salidasGenerales.get(
+                                    fecha
+                            );
+
+                    if (salidaGeneral != null
+                            && horaEntrada != null) {
+
+                        horaSalida =
+                                salidaGeneral.getString(
+                                        "horaSalidaGeneral"
+                                );
+
+                        estado = "SalidaGeneral";
+
+                        DatosAutorizacion datos =
+                                obtenerDatosAutorizacion(
+                                        salidaGeneral.getString(
+                                                "idAutorizacion"
+                                        )
+                                );
+
+                        nombreAutoriza =
+                                datos.nombreAutoriza();
+
+                        motivo =
+                                datos.motivo();
                     }
                 }
             }
 
             filas.add(
                     new ConsultaRegistroDto(
-                            FirestoreUtil.fecha(
-                                    registro.get("fechaHoraEntrada"),
-                                    ZONE_ID
-                            ),
-                            FirestoreUtil.hora(
-                                    registro.get("fechaHoraEntrada"),
-                                    ZONE_ID
-                            ),
-                            FirestoreUtil.hora(
-                                    registro.get("fechaHoraSalida"),
-                                    ZONE_ID
-                            ),
-                            registro.getString("estado"),
+                            fecha,
+                            horaEntrada,
+                            horaSalida,
+                            estado,
                             nombreAutoriza,
                             motivo
                     )
@@ -229,16 +345,146 @@ public class ConsultaService {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> tutor =
-                (Map<String, Object>) alumno.get("tutor");
+                (Map<String, Object>)
+                        alumno.get("tutor");
 
         return new ConsultaAlumnoResponse(
                 alumno.getString("idAlumno"),
-                alumnoService.obtenerNombreCompleto(alumno),
-                String.valueOf(alumno.get("idGrupo")),
-                alumnoService.obtenerIniciales(alumno),
+                alumnoService.obtenerNombreCompleto(
+                        alumno
+                ),
+                String.valueOf(
+                        alumno.get("idGrupo")
+                ),
+                alumnoService.obtenerIniciales(
+                        alumno
+                ),
                 alumno.getBoolean("activo"),
                 tutor,
                 filas
         );
+    }
+
+    private Map<String, DocumentSnapshot>
+    obtenerSalidasGeneralesPorFecha()
+            throws Exception {
+
+        QuerySnapshot autorizaciones = firestore
+                .collection("autorizacionesSalida")
+                .get()
+                .get();
+
+        Map<String, DocumentSnapshot> resultado =
+                new HashMap<>();
+
+        for (DocumentSnapshot autorizacion
+                : autorizaciones.getDocuments()) {
+
+            if (!Boolean.TRUE.equals(
+                    autorizacion.getBoolean("activa")
+            )) {
+                continue;
+            }
+
+            if (!"GENERAL".equals(
+                    autorizacion.getString("tipo")
+            )) {
+                continue;
+            }
+
+            String fecha =
+                    autorizacion.getString("fecha");
+
+            String hora =
+                    autorizacion.getString(
+                            "horaSalidaGeneral"
+                    );
+
+            if (fecha == null
+                    || fecha.isBlank()
+                    || hora == null
+                    || hora.isBlank()) {
+
+                continue;
+            }
+
+            resultado.put(
+                    fecha,
+                    autorizacion
+            );
+        }
+
+        return resultado;
+    }
+
+    private DatosAutorizacion obtenerDatosAutorizacion(
+            String idAutorizacion
+    ) throws Exception {
+
+        if (idAutorizacion == null
+                || idAutorizacion.isBlank()) {
+
+            return new DatosAutorizacion(
+                    null,
+                    null
+            );
+        }
+
+        DocumentSnapshot autorizacion = firestore
+                .collection("autorizacionesSalida")
+                .document(idAutorizacion)
+                .get()
+                .get();
+
+        if (!autorizacion.exists()) {
+            return new DatosAutorizacion(
+                    null,
+                    null
+            );
+        }
+
+        String motivo =
+                autorizacion.getString("motivo");
+
+        String nombreAutoriza = null;
+
+        String idUsuario =
+                autorizacion.getString(
+                        "idUsuarioAutoriza"
+                );
+
+        if (idUsuario != null
+                && !idUsuario.isBlank()) {
+
+            QuerySnapshot usuarioQuery = firestore
+                    .collection("usuariosSistema")
+                    .whereEqualTo(
+                            "idUsuario",
+                            idUsuario
+                    )
+                    .limit(1)
+                    .get()
+                    .get();
+
+            if (!usuarioQuery.isEmpty()) {
+
+                nombreAutoriza =
+                        usuarioQuery
+                                .getDocuments()
+                                .get(0)
+                                .getString("nombre");
+            }
+        }
+
+        return new DatosAutorizacion(
+                nombreAutoriza,
+                motivo
+        );
+    }
+
+    private record DatosAutorizacion(
+            String nombreAutoriza,
+            String motivo
+    ) {
     }
 }

@@ -7,6 +7,7 @@ export default function AuthorizationModule({
   grupos,
   searchStudent,
   createAuthorization,
+  generalActiva = false,
 }) {
   function getNombreGrupo(idGrupo) {
     const grupo = grupos.find(
@@ -152,6 +153,12 @@ export default function AuthorizationModule({
       </div>
 
       <div className="space-y-5 p-5 sm:p-6">
+        {generalActiva && (
+          <div className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-4 text-sm leading-6 text-fuchsia-800">
+            <b>Salida general activa.</b> Ya no es necesario registrar
+            autorizaciones por alumno o por grupo para el día de hoy.
+          </div>
+        )}
         <div>
           <span className="form-label">Tipo de salida</span>
           <div className="grid grid-cols-2 gap-2">
@@ -160,6 +167,7 @@ export default function AuthorizationModule({
                 key={value}
                 type="button"
                 onClick={() => cambiarTipo(value)}
+                disabled={generalActiva}
                 className={`rounded-xl border px-4 py-3 text-sm font-extrabold transition ${
                   tipo === value
                     ? 'border-cetis-wine bg-cetis-wine text-white'
@@ -188,12 +196,13 @@ export default function AuthorizationModule({
                   setAlumno(null)
                   setMessage(null)
                 }}
+                disabled={generalActiva}
               />
               <button
                 type="button"
                 className="btn-secondary shrink-0 gap-2"
                 onClick={buscarAlumno}
-                disabled={loading}
+                disabled={loading || generalActiva}
               >
                 <SearchIcon />
                 <span className="hidden sm:inline">Buscar</span>
@@ -224,6 +233,7 @@ export default function AuthorizationModule({
                 setIdGrupo(event.target.value)
                 setMessage(null)
               }}
+              disabled={generalActiva}
             >
               <option value="">Selecciona un grupo</option>
               {grupos.map((grupo) => (
@@ -245,6 +255,7 @@ export default function AuthorizationModule({
             placeholder="Ej. Solicitud del tutor"
             value={motivo}
             onChange={(event) => setMotivo(event.target.value)}
+            disabled={generalActiva}
           />
         </div>
 
@@ -265,7 +276,7 @@ export default function AuthorizationModule({
         <button
           type="button"
           onClick={autorizar}
-          disabled={loading}
+          disabled={loading || generalActiva}
           className="btn-primary w-full gap-2"
         >
           <CheckIcon />

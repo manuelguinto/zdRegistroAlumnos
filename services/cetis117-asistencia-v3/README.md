@@ -235,3 +235,50 @@ Reglas:
    `PENDIENTE`.
 
 La autorización tiene prioridad visual sobre el horario.
+
+
+## Cambios v12 - Salida general
+
+Se agrega el tipo de autorización `GENERAL`.
+
+Request:
+
+```json
+{
+  "tipo": "GENERAL",
+  "horaSalidaGeneral": "12:30",
+  "idUsuarioAutoriza": "TMARTINEZ",
+  "motivo": "Reunión docente"
+}
+```
+
+Reglas:
+
+- Solo puede existir una salida general activa por día.
+- No se modifican masivamente los documentos de `registro`.
+- En la consulta, si el alumno tuvo entrada y no tiene salida real, se presenta
+  virtualmente `horaSalidaGeneral`, `Completado`, nombre de quien autorizó y motivo.
+- Si el alumno ya tiene una salida real, esa salida tiene prioridad y nunca se sustituye.
+- Si el alumno escanea su huella después de una salida general, no se modifica el
+  registro; se responde `SALIDA_GENERAL`.
+- El estado de grupo usa prioridad:
+  `SALIDA_GENERAL > SALIDA_POR_AUTORIZACION > SALIDA_POR_HORARIO > PENDIENTE`.
+
+
+## Cambios v13
+
+- En consultas, una salida derivada de autorización `GENERAL` ahora devuelve:
+  - `estado = SalidaGeneral`
+- Si ya existe una autorización `GENERAL` activa para hoy:
+  - no se permite crear autorización por `ALUMNO`;
+  - no se permite crear autorización por `GRUPO`.
+- La respuesta en ese caso es:
+
+```json
+{
+  "resultado": "SALIDA_GENERAL_YA_AUTORIZADA",
+  "mensaje": "Ya existe una salida general autorizada para hoy"
+}
+```
+
+La validación está en backend para que no dependa únicamente de la interfaz React.

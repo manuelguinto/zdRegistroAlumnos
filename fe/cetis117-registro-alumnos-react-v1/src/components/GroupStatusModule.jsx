@@ -1,4 +1,12 @@
 function statusConfig(estado) {
+  if (estado === 'SALIDA_GENERAL') {
+    return {
+      label: 'Salida general',
+      classes: 'bg-fuchsia-100 text-fuchsia-800',
+      dot: 'bg-fuchsia-500',
+    }
+  }
+
   if (estado === 'SALIDA_POR_AUTORIZACION') {
     return {
       label: 'Salida por autorización',
@@ -54,9 +62,15 @@ export default function GroupStatusModule({
                   </p>
 
                   <p className="mt-1 text-sm text-cetis-muted">
-                    {grupo.salidaHabilitada
-                      ? 'El grupo ya puede registrar su salida'
-                      : 'El grupo aún no tiene salida habilitada'}
+                    {grupo.estadoSalida === 'SALIDA_GENERAL'
+                      ? `Salida general${
+                          grupo.horaSalidaEfectiva
+                            ? ` · ${grupo.horaSalidaEfectiva}`
+                            : ''
+                        }`
+                      : grupo.salidaHabilitada
+                        ? 'El grupo ya puede registrar su salida'
+                        : 'El grupo aún no tiene salida habilitada'}
                   </p>
                 </div>
 

@@ -37,7 +37,9 @@ public class GrupoService {
     ) throws Exception {
 
         DocumentSnapshot usuario =
-                usuarioSistemaService.buscarPorCodigo(codigo);
+                usuarioSistemaService.buscarPorCodigo(
+                        codigo
+                );
 
         if (usuario == null) {
             throw new IllegalArgumentException(
@@ -45,27 +47,34 @@ public class GrupoService {
             );
         }
 
-        Set<String> gruposAutorizadosHoy =
-                obtenerGruposAutorizadosHoy();
+        EstadoAutorizaciones estadoDia =
+                obtenerEstadoAutorizacionesHoy();
 
         QuerySnapshot query = firestore
                 .collection("grupo")
                 .get()
                 .get();
 
-        List<GrupoResponse> grupos = new ArrayList<>();
-        LocalTime horaActual = LocalTime.now(ZONE_ID);
+        List<GrupoResponse> grupos =
+                new ArrayList<>();
 
-        for (DocumentSnapshot documento : query.getDocuments()) {
+        LocalTime horaActual =
+                LocalTime.now(ZONE_ID);
 
-            Boolean activo = documento.getBoolean("activo");
+        for (DocumentSnapshot documento
+                : query.getDocuments()) {
+
+            Boolean activo =
+                    documento.getBoolean("activo");
 
             if (!Boolean.TRUE.equals(activo)) {
                 continue;
             }
 
             String idGrupo =
-                    String.valueOf(documento.get("idGrupo"));
+                    String.valueOf(
+                            documento.get("idGrupo")
+                    );
 
             String nombre =
                     documento.getString("nombre");
@@ -73,31 +82,63 @@ public class GrupoService {
             String horaSalida =
                     documento.getString("horaSalida");
 
-            String estadoSalida = "PENDIENTE";
-            boolean salidaHabilitada = false;
+            String estadoSalida =
+                    "PENDIENTE";
+
+            boolean salidaHabilitada =
+                    false;
+
+            String horaSalidaEfectiva =
+                    null;
 
             /*
-             * La autorización de grupo tiene prioridad para identificar
-             * la razón por la cual ya puede retirarse.
+             * Prioridad:
+             * GENERAL > GRUPO > HORARIO > PENDIENTE
              */
-            if (gruposAutorizadosHoy.contains(idGrupo)) {
+            if (estadoDia.salidaGeneral() != null) {
 
-                estadoSalida = "SALIDA_POR_AUTORIZACION";
-                salidaHabilitada = true;
+                estadoSalida =
+                        "SALIDA_GENERAL";
+
+                salidaHabilitada =
+                        true;
+
+                horaSalidaEfectiva =
+                        estadoDia
+                                .salidaGeneral()
+                                .getString(
+                                        "horaSalidaGeneral"
+                                );
+
+            } else if (estadoDia
+                    .gruposAutorizados()
+                    .contains(idGrupo)) {
+
+                estadoSalida =
+                        "SALIDA_POR_AUTORIZACION";
+
+                salidaHabilitada =
+                        true;
 
             } else if (horaSalida != null
                     && !horaSalida.isBlank()) {
 
                 LocalTime horarioConfigurado =
-                        LocalTime.parse(horaSalida);
+                        LocalTime.parse(
+                                horaSalida
+                        );
 
-                /*
-                 * Para el estado general del grupo usamos la hora oficial
-                 * configurada del grupo, no los minutos de tolerancia.
-                 */
-                if (!horaActual.isBefore(horarioConfigurado)) {
-                    estadoSalida = "SALIDA_POR_HORARIO";
-                    salidaHabilitada = true;
+                if (!horaActual.isBefore(
+                        horarioConfigurado
+                )) {
+                    estadoSalida =
+                            "SALIDA_POR_HORARIO";
+
+                    salidaHabilitada =
+                            true;
+
+                    horaSalidaEfectiva =
+                            horaSalida;
                 }
             }
 
@@ -108,7 +149,8 @@ public class GrupoService {
                             horaSalida,
                             activo,
                             estadoSalida,
-                            salidaHabilitada
+                            salidaHabilitada,
+                            horaSalidaEfectiva
                     )
             );
         }
@@ -125,11 +167,13 @@ public class GrupoService {
         return grupos;
     }
 
-    private Set<String> obtenerGruposAutorizadosHoy()
+    private EstadoAutorizaciones
+    obtenerEstadoAutorizacionesHoy()
             throws Exception {
 
         String hoy =
-                LocalDate.now(ZONE_ID).toString();
+                LocalDate.now(ZONE_ID)
+                        .toString();
 
         QuerySnapshot autorizaciones = firestore
                 .collection("autorizacionesSalida")
@@ -137,7 +181,11 @@ public class GrupoService {
                 .get()
                 .get();
 
-        Set<String> grupos = new HashSet<>();
+        Set<String> grupos =
+                new HashSet<>();
+
+        DocumentSnapshot salidaGeneral =
+                null;
 
         for (DocumentSnapshot autorizacion
                 : autorizaciones.getDocuments()) {
@@ -148,22 +196,39 @@ public class GrupoService {
                 continue;
             }
 
-            if (!"GRUPO".equals(
-                    autorizacion.getString("tipo")
-            )) {
+            String tipo =
+                    autorizacion.getString("tipo");
+
+            if ("GENERAL".equals(tipo)) {
+
+                salidaGeneral =
+                        autorizacion;
+
                 continue;
             }
 
-            Object idGrupo =
-                    autorizacion.get("idGrupo");
+            if ("GRUPO".equals(tipo)) {
 
-            if (idGrupo != null) {
-                grupos.add(
-                        String.valueOf(idGrupo)
-                );
+                Object idGrupo =
+                        autorizacion.get("idGrupo");
+
+                if (idGrupo != null) {
+                    grupos.add(
+                            String.valueOf(idGrupo)
+                    );
+                }
             }
         }
 
-        return grupos;
+        return new EstadoAutorizaciones(
+                grupos,
+                salidaGeneral
+        );
+    }
+
+    private record EstadoAutorizaciones(
+            Set<String> gruposAutorizados,
+            DocumentSnapshot salidaGeneral
+    ) {
     }
 }

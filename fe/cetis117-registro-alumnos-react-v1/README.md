@@ -201,3 +201,33 @@ La tarjeta ya no intenta deducir el estado contando registros de alumnos.
 - El logo principal de la portada fue centrado dentro del panel izquierdo.
 - La etiqueta `Portal escolar` se reposicionó para evitar que se corte.
 - Se mantuvo el estilo visual de la versión anterior.
+
+
+## Cambios v10 - Cerrar sesión
+
+- Se restauró el botón `Cerrar sesión` en el encabezado.
+- El logo y el título continúan alineados a la izquierda.
+- Cuando hay sesión activa, el encabezado vuelve a mostrar el nombre del usuario y el botón de salida.
+- En pantallas pequeñas se muestra el icono y en pantallas mayores el texto completo.
+
+
+## Cambios v11 - Salida general
+
+- Se agrega botón grande `Salida general` en la parte superior derecha del módulo administrativo.
+- Al presionarlo se abre un modal para capturar:
+  - hora de salida general;
+  - motivo.
+- El request utiliza el servicio existente `/api/autorizaciones` con `tipo = GENERAL`.
+- Después de autorizar se refrescan alumnos y grupos.
+- La sección de grupos reconoce `SALIDA_GENERAL`.
+- Si la salida general ya existe ese día, el botón queda marcado como activa.
+
+
+## Cambios v12
+
+- La bitácora muestra `Salida General` en lugar de `Completado` cuando la salida se deriva de una autorización general.
+- `Salida General` usa una etiqueta visual distinta.
+- Cuando existe una salida general activa:
+  - el módulo de autorización por alumno/grupo queda deshabilitado;
+  - se muestra un aviso explicando que ya no son necesarias autorizaciones adicionales.
+- El backend sigue siendo la fuente definitiva de validación.

@@ -1,4 +1,8 @@
 function statusClasses(estado) {
+  if (estado === 'SalidaGeneral') {
+    return 'bg-fuchsia-100 text-fuchsia-800'
+  }
+
   if (estado === 'Completado') {
     return 'bg-emerald-100 text-emerald-700'
   }
@@ -8,6 +12,14 @@ function statusClasses(estado) {
   }
 
   return 'bg-slate-100 text-slate-700'
+}
+
+function statusLabel(estado) {
+  if (estado === 'SalidaGeneral') {
+    return 'Salida General'
+  }
+
+  return estado || '—'
 }
 
 export default function AttendanceTable({
@@ -65,7 +77,7 @@ export default function AttendanceTable({
                     </td>
                     <td className="px-5 py-4">
                       <span className={`pill ${statusClasses(registro.estado)}`}>
-                        {registro.estado || '—'}
+                        {statusLabel(registro.estado)}
                       </span>
                     </td>
                     <td className="px-5 py-4">{registro.nombreAutoriza || '—'}</td>
@@ -106,7 +118,7 @@ export default function AttendanceTable({
                     </div>
                   </div>
                   <span className={`pill ${statusClasses(registro.estado)}`}>
-                    {registro.estado || '—'}
+                    {statusLabel(registro.estado)}
                   </span>
                 </div>
 

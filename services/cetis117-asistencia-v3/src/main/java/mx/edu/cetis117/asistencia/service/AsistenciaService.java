@@ -106,6 +106,37 @@ public class AsistenciaService {
             );
         }
 
+        DocumentSnapshot salidaGeneral =
+                autorizacionService
+                        .buscarAutorizacionGeneralDelDia();
+
+        if (salidaGeneral != null) {
+
+            String horaSalidaGeneral =
+                    salidaGeneral.getString(
+                            "horaSalidaGeneral"
+                    );
+
+            String mensaje =
+                    horaSalidaGeneral == null
+                            || horaSalidaGeneral.isBlank()
+                            ? "Salida general autorizada, buen regreso a casa"
+                            : "Salida general registrada a las "
+                            + horaSalidaGeneral
+                            + ", buen regreso a casa";
+
+            return new AsistenciaResponse(
+                    "SALIDA_GENERAL",
+                    mensaje,
+                    "Completado",
+                    idRegistro,
+                    salidaGeneral.getString(
+                            "idAutorizacion"
+                    ),
+                    nombreAlumno
+            );
+        }
+
         boolean requiereAutorizacion =
                 systemParamsService.getRequiereAutorizacionSalida();
 

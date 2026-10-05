@@ -1,8 +1,14 @@
-export default function Header() {
+import { LogOutIcon } from './Icons'
+
+export default function Header({
+  subtitle = 'Consulta de asistencia por código de seguridad',
+  userLabel,
+  onLogout,
+}) {
   return (
     <header className="border-b border-[#eadfce] bg-white/95 backdrop-blur">
-      <div className="w-full px-4 py-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-start gap-3">
+      <div className="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center justify-start gap-3">
           <img
             src="/logo-cetis117.jpg"
             alt="Logo CETIS 117"
@@ -15,10 +21,30 @@ export default function Header() {
             </p>
 
             <p className="truncate text-sm text-cetis-muted sm:text-base">
-              Consulta de asistencia por código de seguridad
+              {subtitle}
             </p>
           </div>
         </div>
+
+        {onLogout && (
+          <div className="flex shrink-0 items-center gap-2">
+            {userLabel && (
+              <span className="hidden rounded-full bg-cetis-cream px-3 py-2 text-xs font-bold text-cetis-wine md:inline-flex">
+                {userLabel}
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className="btn-secondary gap-2 px-3 sm:px-4"
+              title="Cerrar sesión"
+            >
+              <LogOutIcon />
+              <span className="hidden sm:inline">Cerrar sesión</span>
+            </button>
+          </div>
+        )}
       </div>
     </header>
   )
