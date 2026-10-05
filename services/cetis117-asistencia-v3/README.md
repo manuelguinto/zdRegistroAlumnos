@@ -282,3 +282,14 @@ Reglas:
 ```
 
 La validación está en backend para que no dependa únicamente de la interfaz React.
+
+
+## Cambios v14 - Estado visible de salida
+
+La consulta ahora distingue:
+
+- salida normal -> `Completado`
+- salida autorizada por `ALUMNO` o `GRUPO` -> `SalidaAnticipada`
+- salida `GENERAL` -> `SalidaGeneral`
+
+El documento original de `registro` no cambia por esta mejora visual.

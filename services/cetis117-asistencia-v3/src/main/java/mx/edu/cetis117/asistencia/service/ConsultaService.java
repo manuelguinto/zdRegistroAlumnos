@@ -258,6 +258,12 @@ public class ConsultaService {
 
                     motivo =
                             datos.motivo();
+
+                    if ("ALUMNO".equals(datos.tipo())
+                            || "GRUPO".equals(datos.tipo())) {
+
+                        estado = "SalidaAnticipada";
+                    }
                 }
 
             } else {
@@ -426,6 +432,7 @@ public class ConsultaService {
 
             return new DatosAutorizacion(
                     null,
+                    null,
                     null
             );
         }
@@ -438,6 +445,7 @@ public class ConsultaService {
 
         if (!autorizacion.exists()) {
             return new DatosAutorizacion(
+                    null,
                     null,
                     null
             );
@@ -478,13 +486,15 @@ public class ConsultaService {
 
         return new DatosAutorizacion(
                 nombreAutoriza,
-                motivo
+                motivo,
+                autorizacion.getString("tipo")
         );
     }
 
     private record DatosAutorizacion(
             String nombreAutoriza,
-            String motivo
+            String motivo,
+            String tipo
     ) {
     }
 }
