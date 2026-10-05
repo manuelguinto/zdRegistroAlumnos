@@ -58,7 +58,7 @@ public class AsistenciaService {
                 alumnoService.obtenerNombreCompleto(alumno);
 
         String inicialesAlumno =
-                alumnoService.generarIniciales(alumno);
+                alumnoService.obtenerIniciales(alumno);
 
         String idGrupo =
                 String.valueOf(alumno.get("idGrupo"));

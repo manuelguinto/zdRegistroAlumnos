@@ -129,3 +129,14 @@ Invoke-RestMethod `
   "motivo": "Solicitud del tutor"
 }
 ```
+
+
+## Cambios v8
+
+- La autorización por alumno ahora busca directamente el campo `iniciales` guardado en la colección `alumnos`.
+- Ya no se calculan las iniciales a partir del nombre completo.
+- Esto permite usar claves definidas por Control Escolar, por ejemplo `MSGG`.
+- El request sigue usando:
+  `"iniciales": "MSGG"`
+- El registro de salida busca la autorización usando exactamente las iniciales almacenadas en el alumno.
+- La importación CSV acepta la columna `iniciales`.

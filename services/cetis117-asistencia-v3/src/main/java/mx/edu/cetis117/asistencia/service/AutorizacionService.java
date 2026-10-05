@@ -72,7 +72,7 @@ public class AutorizacionService {
                 );
             }
 
-            iniciales = alumnoService.generarIniciales(alumno);
+            iniciales = alumnoService.obtenerIniciales(alumno);
 
             DocumentSnapshot autorizacionExistente =
                     buscarAutorizacionAlumnoDelDia(iniciales);

@@ -93,42 +93,35 @@ public class AlumnoService {
         return resultado;
     }
 
-    public DocumentSnapshot buscarPorIniciales(
-            String iniciales
-    ) throws Exception {
 
-        String inicialesNormalizadas = normalizarIniciales(iniciales);
+public DocumentSnapshot buscarPorIniciales(
+        String iniciales
+) throws Exception {
 
-        if (inicialesNormalizadas.isBlank()) {
-            return null;
-        }
+    String inicialesNormalizadas =
+            normalizarClaveIniciales(iniciales);
 
-        QuerySnapshot query = firestore
-                .collection("alumnos")
-                .whereEqualTo("activo", true)
-                .get()
-                .get();
-
-        List<DocumentSnapshot> coincidencias = new ArrayList<>();
-
-        for (DocumentSnapshot alumno : query.getDocuments()) {
-            String inicialesAlumno = generarIniciales(alumno);
-
-            if (inicialesNormalizadas.equals(inicialesAlumno)) {
-                coincidencias.add(alumno);
-            }
-        }
-
-        if (coincidencias.size() > 1) {
-            throw new IllegalArgumentException(
-                    "Las iniciales corresponden a más de un alumno"
-            );
-        }
-
-        return coincidencias.isEmpty()
-                ? null
-                : coincidencias.get(0);
+    if (inicialesNormalizadas.isBlank()) {
+        return null;
     }
+
+    QuerySnapshot query = firestore
+            .collection("alumnos")
+            .whereEqualTo("iniciales", inicialesNormalizadas)
+            .whereEqualTo("activo", true)
+            .get()
+            .get();
+
+    if (query.size() > 1) {
+        throw new IllegalArgumentException(
+                "Las iniciales corresponden a más de un alumno"
+        );
+    }
+
+    return query.isEmpty()
+            ? null
+            : query.getDocuments().get(0);
+}
 
     public String obtenerNombreCompleto(
             DocumentSnapshot alumno
@@ -154,46 +147,33 @@ public class AlumnoService {
                 .collect(Collectors.joining(" "));
     }
 
-    public String generarIniciales(
-            DocumentSnapshot alumno
-    ) {
-        return normalizarIniciales(
-                obtenerNombreCompleto(alumno)
-        );
+
+public String obtenerIniciales(
+        DocumentSnapshot alumno
+) {
+    String iniciales = alumno.getString("iniciales");
+
+    if (iniciales == null || iniciales.isBlank()) {
+        return "";
     }
 
-    public String normalizarIniciales(
-            String texto
-    ) {
-        if (texto == null || texto.isBlank()) {
-            return "";
-        }
+    return normalizarClaveIniciales(iniciales);
+}
 
-        String normalizado = Normalizer
-                .normalize(texto, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .trim()
-                .toUpperCase();
-
-        String[] palabras = normalizado.split("\\s+");
-
-        if (palabras.length == 1) {
-            return palabras[0]
-                    .replaceAll("[^A-Z0-9]", "");
-        }
-
-        StringBuilder iniciales = new StringBuilder();
-
-        for (String palabra : palabras) {
-            String limpia = palabra.replaceAll("[^A-Z0-9]", "");
-
-            if (!limpia.isBlank()) {
-                iniciales.append(limpia.charAt(0));
-            }
-        }
-
-        return iniciales.toString();
+public String normalizarClaveIniciales(
+        String texto
+) {
+    if (texto == null || texto.isBlank()) {
+        return "";
     }
+
+    return Normalizer
+            .normalize(texto, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}", "")
+            .replaceAll("[^A-Za-z0-9]", "")
+            .trim()
+            .toUpperCase();
+}
 
     public int importarCsv(
             MultipartFile file
@@ -240,6 +220,12 @@ public class AlumnoService {
                 documento.put(
                         "idGrupo",
                         value(record, "idGrupo")
+                );
+                documento.put(
+                        "iniciales",
+                        normalizarClaveIniciales(
+                                value(record, "iniciales")
+                        )
                 );
                 documento.put(
                         "fingerprintId",
