@@ -18,74 +18,133 @@ import java.util.Map;
 @Service
 public class ConsultaService {
 
-    private static final ZoneId ZONE_ID = ZoneId.of("America/Mexico_City");
+    private static final ZoneId ZONE_ID =
+            ZoneId.of("America/Mexico_City");
 
     private final Firestore firestore;
-    private final AlumnoService alumnos;
-    private final UsuarioSistemaService usuarios;
+    private final AlumnoService alumnoService;
+    private final UsuarioSistemaService usuarioSistemaService;
 
     public ConsultaService(
             Firestore firestore,
-            AlumnoService alumnos,
-            UsuarioSistemaService usuarios
+            AlumnoService alumnoService,
+            UsuarioSistemaService usuarioSistemaService
     ) {
         this.firestore = firestore;
-        this.alumnos = alumnos;
-        this.usuarios = usuarios;
+        this.alumnoService = alumnoService;
+        this.usuarioSistemaService = usuarioSistemaService;
     }
 
     public List<ConsultaAlumnoResponse> consultar(
             String codigo,
-            String nombre
+            String nombre,
+            String idGrupo,
+            String iniciales
     ) throws Exception {
 
-        DocumentSnapshot superUsuario = usuarios.buscarPorCodigo(codigo);
+        DocumentSnapshot superUsuario =
+                usuarioSistemaService.buscarPorCodigo(codigo);
 
-        List<DocumentSnapshot> lista = new ArrayList<>();
+        List<DocumentSnapshot> alumnos = new ArrayList<>();
 
         if (superUsuario != null) {
+            QuerySnapshot query = firestore
+                    .collection("alumnos")
+                    .whereEqualTo("activo", true)
+                    .get()
+                    .get();
 
-            if (nombre == null || nombre.isBlank()) {
-
-                QuerySnapshot qs = firestore
-                        .collection("alumnos")
-                        .whereEqualTo("activo", true)
-                        .get()
-                        .get();
-
-                for (QueryDocumentSnapshot doc : qs.getDocuments()) {
-                    lista.add(doc);
+            for (QueryDocumentSnapshot documento : query.getDocuments()) {
+                if (!cumpleFiltros(
+                        documento,
+                        nombre,
+                        idGrupo,
+                        iniciales
+                )) {
+                    continue;
                 }
 
-            } else {
-                lista.addAll(alumnos.buscarPorNombre(nombre));
+                alumnos.add(documento);
             }
 
         } else {
-
-            DocumentSnapshot alumno = alumnos.buscarPorCodigoTutor(codigo);
+            DocumentSnapshot alumno =
+                    alumnoService.buscarPorCodigoTutor(codigo);
 
             if (alumno == null) {
                 return List.of();
             }
 
-            lista.add(alumno);
+            alumnos.add(alumno);
         }
 
         List<ConsultaAlumnoResponse> salida = new ArrayList<>();
 
-        for (DocumentSnapshot alumno : lista) {
+        for (DocumentSnapshot alumno : alumnos) {
             salida.add(mapAlumno(alumno));
         }
 
+        salida.sort(
+                Comparator.comparing(
+                        ConsultaAlumnoResponse::nombreCompleto,
+                        Comparator.nullsLast(
+                                String.CASE_INSENSITIVE_ORDER
+                        )
+                )
+        );
+
         return salida;
+    }
+
+    private boolean cumpleFiltros(
+            DocumentSnapshot alumno,
+            String nombre,
+            String idGrupo,
+            String iniciales
+    ) {
+
+        if (nombre != null && !nombre.isBlank()) {
+            String nombreCompleto =
+                    alumnoService.obtenerNombreCompleto(alumno);
+
+            if (!nombreCompleto
+                    .toLowerCase()
+                    .contains(nombre.trim().toLowerCase())) {
+
+                return false;
+            }
+        }
+
+        if (idGrupo != null && !idGrupo.isBlank()) {
+            String grupoAlumno =
+                    String.valueOf(alumno.get("idGrupo"));
+
+            if (!grupoAlumno.equals(idGrupo.trim())) {
+                return false;
+            }
+        }
+
+        if (iniciales != null && !iniciales.isBlank()) {
+            String inicialesAlumno =
+                    alumnoService.obtenerIniciales(alumno);
+
+            String filtroIniciales =
+                    alumnoService.normalizarClaveIniciales(iniciales);
+
+            if (!inicialesAlumno.equals(filtroIniciales)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private ConsultaAlumnoResponse mapAlumno(
             DocumentSnapshot alumno
     ) throws Exception {
 
-        Long fingerprintId = alumno.getLong("fingerprintId");
+        Long fingerprintId =
+                alumno.getLong("fingerprintId");
 
         QuerySnapshot registros = firestore
                 .collection("registro")
@@ -113,14 +172,14 @@ public class ConsultaService {
                         .get();
 
                 if (autorizacion.exists()) {
-
                     motivo = autorizacion.getString("motivo");
 
-                    String idUsuario = autorizacion
-                            .getString("idUsuarioAutoriza");
+                    String idUsuario =
+                            autorizacion.getString(
+                                    "idUsuarioAutoriza"
+                            );
 
                     if (idUsuario != null) {
-
                         QuerySnapshot usuarioQuery = firestore
                                 .collection("usuariosSistema")
                                 .whereEqualTo("idUsuario", idUsuario)
@@ -174,8 +233,10 @@ public class ConsultaService {
 
         return new ConsultaAlumnoResponse(
                 alumno.getString("idAlumno"),
-                alumnos.obtenerNombreCompleto(alumno),
+                alumnoService.obtenerNombreCompleto(alumno),
                 String.valueOf(alumno.get("idGrupo")),
+                alumnoService.obtenerIniciales(alumno),
+                alumno.getBoolean("activo"),
                 tutor,
                 filas
         );

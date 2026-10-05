@@ -40,7 +40,8 @@ public class AlumnoController {
             @RequestPart("file") MultipartFile file
     ) throws Exception {
 
-        int registrosImportados = alumnoService.importarCsv(file);
+        int registrosImportados =
+                alumnoService.importarCsv(file);
 
         return Map.of(
                 "registrosImportados",
@@ -51,9 +52,16 @@ public class AlumnoController {
     @GetMapping("/consulta")
     public List<ConsultaAlumnoResponse> consulta(
             @RequestParam String codigo,
-            @RequestParam(required = false) String nombre
+            @RequestParam(required = false) String nombre,
+            @RequestParam(required = false) String idGrupo,
+            @RequestParam(required = false) String iniciales
     ) throws Exception {
 
-        return consultaService.consultar(codigo, nombre);
+        return consultaService.consultar(
+                codigo,
+                nombre,
+                idGrupo,
+                iniciales
+        );
     }
 }

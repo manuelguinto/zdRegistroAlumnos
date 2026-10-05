@@ -7,6 +7,8 @@ public record ConsultaAlumnoResponse(
         String idAlumno,
         String nombreCompleto,
         String idGrupo,
+        String iniciales,
+        Boolean activo,
         Map<String, Object> tutor,
         List<ConsultaRegistroDto> registros
 ) {

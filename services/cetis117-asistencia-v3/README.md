@@ -156,3 +156,82 @@ Invoke-RestMethod `
 ```
 
 - No se crea un segundo documento de autorización para ese grupo durante el mismo día.
+
+
+## Cambios v10 - Portal React
+
+Se agregan servicios necesarios para el portal web:
+
+### Validar acceso
+
+```text
+GET /api/acceso/validar?codigo=CODIGO
+```
+
+Distingue entre:
+- `TUTOR`
+- `SISTEMA`
+
+### Listar grupos
+
+```text
+GET /api/grupos?codigo=CODIGO_USUARIO_SISTEMA
+```
+
+Devuelve los grupos activos con `idGrupo`, `nombre` y `horaSalida`.
+
+### Consulta de alumnos con filtros
+
+```text
+GET /api/alumnos/consulta?codigo=CODIGO
+```
+
+Para usuarios de sistema admite filtros opcionales:
+
+```text
+nombre
+idGrupo
+iniciales
+```
+
+Ejemplo:
+
+```text
+GET /api/alumnos/consulta?codigo=SUPERCODIGO&idGrupo=3&nombre=Manuel&iniciales=MSGG
+```
+
+La respuesta ahora incluye además:
+- `iniciales`
+- `activo`
+
+Para código de tutor, el servicio continúa devolviendo únicamente el alumno asociado.
+
+
+## Cambios v11 - Estado de salida por grupo
+
+`GET /api/grupos?codigo=...` ahora devuelve también:
+
+```json
+{
+  "estadoSalida": "PENDIENTE",
+  "salidaHabilitada": false
+}
+```
+
+Valores posibles de `estadoSalida`:
+
+- `PENDIENTE`
+- `SALIDA_POR_AUTORIZACION`
+- `SALIDA_POR_HORARIO`
+
+Reglas:
+
+1. Si existe una autorización activa de tipo `GRUPO` para el día actual:
+   `SALIDA_POR_AUTORIZACION`.
+2. Si no existe autorización, pero la hora actual es igual o posterior a
+   `grupo.horaSalida`:
+   `SALIDA_POR_HORARIO`.
+3. En cualquier otro caso:
+   `PENDIENTE`.
+
+La autorización tiene prioridad visual sobre el horario.
