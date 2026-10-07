@@ -1,5 +1,6 @@
 import AttendanceTable from './AttendanceTable'
 import StudentSummary from './StudentSummary'
+import { formatDateMask } from '../utils/dateFormat'
 
 export default function TutorDashboard({
   alumno,
@@ -36,7 +37,7 @@ export default function TutorDashboard({
           <Metric
             title="Último registro"
             value={ultimo?.horaSalida || ultimo?.horaEntrada || '—'}
-            note={ultimo?.fecha || 'Sin registros'}
+            note={ultimo?.fecha ? formatDateMask(ultimo.fecha) : 'Sin registros'}
             wide
           />
         </div>

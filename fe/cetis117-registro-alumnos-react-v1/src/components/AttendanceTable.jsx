@@ -1,3 +1,5 @@
+import { formatDateMask } from '../utils/dateFormat'
+
 function statusClasses(estado) {
   if (estado === 'SalidaGeneral') {
     return 'bg-fuchsia-100 text-fuchsia-800'
@@ -54,7 +56,7 @@ export default function AttendanceTable({
               <tbody className="divide-y divide-[#eee3d5]">
                 {registros.map((registro, index) => (
                   <tr key={`${registro.fecha}-${index}`} className="bg-white">
-                    <td className="px-5 py-4 font-semibold">{registro.fecha || '—'}</td>
+                    <td className="px-5 py-4 font-semibold">{formatDateMask(registro.fecha)}</td>
                     <td className="px-5 py-4">
                       <div className="inline-flex min-w-24 flex-col rounded-2xl border border-[#ead6b1] bg-[#fff8e8] px-4 py-2 shadow-sm">
                         <span className="text-[10px] font-black uppercase tracking-wide text-[#aa7722]">
@@ -96,7 +98,7 @@ export default function AttendanceTable({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-black text-cetis-ink">{registro.fecha || '—'}</p>
+                    <p className="font-black text-cetis-ink">{formatDateMask(registro.fecha)}</p>
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <div className="rounded-xl border border-[#ead6b1] bg-[#fff8e8] px-3 py-2">
                         <span className="block text-[10px] font-black uppercase tracking-wide text-[#aa7722]">
