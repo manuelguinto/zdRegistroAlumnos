@@ -1,672 +1,405 @@
-# CONTEXTO ACTUALIZADO — CETIS 117 / CONTROL DE ASISTENCIA
+﻿# Contexto del proyecto CETIS 117 — Control de Asistencia
 
-**Fecha:** 2026-10-05
+Actualizado: 12/11/2026 (America/Mexico_City).
 
-Este archivo resume lo trabajado en esta conversación para continuar el proyecto sin perder decisiones técnicas, estructura, versiones ni pendientes.
+Este documento sustituye el contexto del 05/10/2026 y resume las decisiones,
+el codigo y las verificaciones realizadas en esta conversacion. Los despliegues
+se reportan como ultimo estado confirmado; comprobarlos si se retoma mas adelante.
+No incluye contrasenas, codigos de acceso reales ni credenciales.
 
-## 1. Objetivo del proyecto
+## 1. Objetivo y estructura
 
-Sistema escolar de **Control de Asistencia** para CETIS 117 con:
+Sistema de entradas y salidas de alumnos mediante huella digital, consulta de
+tutores y administracion escolar. Titulo del portal: **Control de Asistencia**.
 
-- Registro de entrada y salida por huella digital.
-- ESP32 + lector GM60.
-- Backend REST Java 21 + Spring Boot.
-- Google Cloud Run.
-- Firestore.
-- Frontend React + Tailwind.
-- Firebase Hosting.
-- Consulta para padres/tutores.
-- Módulo administrativo para Dirección / Control Escolar.
-- Salidas normales, anticipadas y generales.
+Raiz: `C:\ZONAD\zdRegistroAlumnos`.
 
-El título visible del portal debe conservarse como:
+| Carpeta | Contenido |
+| --- | --- |
+| fe/cetis117-registro-alumnos-react-v1 | React 18 + Vite 5 + Tailwind |
+| services/cetis117-asistencia-v3 | Java 21 + Spring Boot 3.5.6 |
+| firestore/colecctions | Definiciones de colecciones (conservar nombre existente) |
+| arduino/lectorRegistraAlumnos | Sketch ESP32 + R307S, configuracion y certificados |
+| data | Plantilla XLSM, CSV de ejemplo y guia HTML REST |
+| contexto | Este archivo de continuidad |
 
-**Control de Asistencia**
+Antes de modificar: revisar los archivos reales, anunciar los afectados,
+respetar cambios del usuario y preferir cambios puntuales. No reescribir reglas
+de negocio sin indicarlo. Probar/compilar cuando sea posible y mostrar resumen.
 
-## 2. Hardware y flujo
+## 2. Infraestructura y ultimo despliegue confirmado
 
-Hardware previsto:
+### Backend / Firestore
 
-- ESP32.
-- Sensor GM60 (capacidad aproximada 1000 huellas).
-- Aproximadamente 400 alumnos.
-- Una huella por alumno.
-- Pantalla LCD.
-- Regulador DC-DC.
+- Google Cloud project: `zona-d`.
+- Firestore database: `zona-d` (no la base default).
+- Configuracion explicita en `FirestoreConfig.java`, sin variables para esos IDs.
+- Servicio Cloud Run: `zdregistroalumnos`, region `us-central1`.
+- URL: https://zdregistroalumnos-482614074090.us-central1.run.app
+- Ultima revision desplegada: `zdregistroalumnos-00021-skg`, 100 % del trafico.
+- Incluye altas individuales con IDs automaticos e importacion CSV.
+- GET /api/ping publico verificado con status OK tras desplegar.
+- Se conservaron permisos de acceso existentes; no agregar cambios de IAM.
+- Configuracion HTTP: server.port=${PORT:8080}, server.address=0.0.0.0.
 
-Flujo:
+### Frontend / Firebase Hosting
 
-1. Alumno coloca huella.
-2. GM60 devuelve `fingerprintId`.
-3. ESP32 envía el ID al backend.
-4. Backend valida alumno y reglas de asistencia.
-5. Se registra entrada/salida en Firestore.
-6. Se devuelve mensaje para LCD.
+- Proyecto: `zdcontrolasistencia`, nombre `zdControlAsistencia`.
+- Project number: `938892389655`.
+- URL publicada: https://zdcontrolasistencia.web.app
+- Publicado correctamente el 12/11/2026, con altas individuales y masivas.
+- Version Firebase Hosting: `dceedf5c9bff19a7`.
+- firebase.json publica `fe/cetis117-registro-alumnos-react-v1/dist`.
+- Rewrite de todas las rutas a /index.html.
+- No ejecutar firebase init nuevamente.
 
-Importante: Firestore no guarda una fotografía de la huella; guarda el `fingerprintId`. La plantilla biométrica queda en el lector.
+### URL de API en React
 
-## 3. Google Cloud / Firestore
+`src/api.js` usa VITE_API_BASE_URL cuando esta definida; por defecto usa la URL
+HTTPS de Cloud Run tanto en desarrollo como en produccion. Se retiro el proxy
+local de Vite. No existe .env local segun la ultima inspeccion, solo .env.example.
+Por tanto las altas desde localhost tambien modifican Firestore real.
+Para pruebas locales del backend se puede definir VITE_API_BASE_URL=http://localhost:8080
+antes de iniciar Vite; el comportamiento predeterminado debe seguir siendo Cloud Run.
 
-- Project ID backend: `zona-d`
-- Firestore database ID: `zona-d`
-- Cloud Run service: `zdregistroalumnos`
-- Región: `us-central1`
-- URL: `https://zdregistroalumnos-482614074090.us-central1.run.app`
+## 3. Colecciones y modelo vigente
 
-Configuración explícita de Firestore:
+Colecciones: alumnos, grupo, registro, autorizacionesSalida, usuariosSistema,
+systemParams. La coleccion de grupos se llama **grupo**, singular.
 
-```java
-return FirestoreOptions.newBuilder()
-        .setProjectId("zona-d")
-        .setDatabaseId("zona-d")
-        .build()
-        .getService();
+### Alumno
+
+- idAlumno: string numerico 1..1000; normalmente tambien ID del documento.
+- fingerprintId: numerico, igual a idAlumno.
+- nombre, apellidoPaterno, apellidoMaterno, nombreCompleto.
+- idGrupo: ID numerico como string, no nombre del grupo.
+- iniciales: clave normalizada guardada, usada en busquedas/autorizaciones.
+- codigoTutorHash: string de seis digitos; no convertir a numero.
+- tutor: mapa con nombre, parentesco, telefono, telefonoAlternativo y correo.
+- activo: boolean; fechaRegistro y fechaActualizacion: timestamps.
+
+Las consultas y autorizaciones usan las iniciales almacenadas; no recalcularlas
+al consultar. Las altas individuales nuevas SI generan iniciales a partir de
+todos los nombres y apellidos. CSV recibe iniciales de la plantilla y normaliza.
+No almacenar imagenes biometricas. Las plantillas de huella quedan en el lector.
+
+### Grupo
+
+idGrupo (string 1..1000), nombre, horaSalida (HH:mm), activo, fechaCreacion.
+Horario predeterminado 14:00; conservar horario existente al actualizar/importar.
+
+### Parametros
+
+systemParams contiene minutosToleranciaSalida y requiereAutorizacionSalida.
+Cuando no se obtiene tolerancia se usa respaldo de 20 minutos. Revisar el servicio
+para el comportamiento exacto de cada parametro antes de cambiarlo.
+
+## 4. Reglas de asistencia que se conservan
+
+- Documento diario: fingerprintId_yyyy-MM-dd, zona America/Mexico_City.
+- Primera lectura crea entrada. Siguiente lectura puede registrar salida o
+  devolver restriccion segun reglas del backend; Arduino no decide entrada/salida.
+- Si ya existe salida o registro completado, no cambiarlo por nuevas lecturas.
+- Salida normal: horario del grupo menos tolerancia cuando aplica autorizacion.
+- requiereAutorizacionSalida=false permite la segunda lectura como salida.
+- Autorizaciones ALUMNO por iniciales, GRUPO por idGrupo y GENERAL por hora.
+- Rechazar iniciales ambiguas para no autorizar al alumno equivocado.
+- Una autorizacion de alumno por dia y una por grupo por dia.
+- Solo una GENERAL activa al dia; bloquea nuevas ALUMNO/GRUPO.
+- GENERAL no modifica masivamente registros. Consulta deriva salida virtual
+  solo si hubo entrada sin salida real. Nunca sustituir una salida real.
+- No inventar salida para alumnos sin entrada.
+- Etiquetas: Completado para salida normal; SalidaAnticipada / Salida anticipada
+  para salida autorizada; SalidaGeneral / Salida General para general.
+- Prioridad visual de grupo: SALIDA_GENERAL > SALIDA_POR_AUTORIZACION >
+  SALIDA_POR_HORARIO > PENDIENTE.
+- El usuario modifico mensajes en AsistenciaService.java; conservarlos.
+
+## 5. Servicios REST disponibles
+
+| Metodo | Ruta | Uso / acceso actual |
+| --- | --- | --- |
+| GET | /api/ping | Sin Firestore ni escrituras; publico |
+| POST | /api/asistencia/registrar | JSON fingerprintId; Arduino, sin codigo en controlador |
+| GET | /api/acceso/validar?codigo=... | Identifica SISTEMA o TUTOR |
+| GET | /api/grupos?codigo=... | Grupos activos, horario y estado; sistema |
+| GET | /api/alumnos/consulta?codigo=... | Tutor: su alumno; sistema: filtros nombre/idGrupo/iniciales |
+| POST | /api/grupos | Alta individual / actualizacion explicita por ID; sistema |
+| POST | /api/alumnos | Alta individual / actualizacion explicita por ID; sistema |
+| POST | /api/grupos/importar | Multipart file; sistema |
+| POST | /api/alumnos/importar | Multipart file; sistema |
+| POST | /api/autorizaciones | ALUMNO/GRUPO/GENERAL; idUsuarioAutoriza activo en JSON |
+| DELETE | /api/datos/limpieza | Borra alumnos y grupo; sistema y confirmacion |
+| DELETE | /api/registros/limpieza?dias=7 | Borra registros antiguos; controlador existente sin codigo |
+
+Altas, importaciones y limpieza de catalogos requieren encabezado
+`X-Codigo-Sistema` con codigoHash de usuario activo de usuariosSistema.
+Codigo de tutor no autoriza: HTTP 403. La restriccion existe tambien en backend.
+
+Autorizacion JSON: tipo, iniciales o idGrupo o horaSalidaGeneral segun tipo,
+idUsuarioAutoriza y motivo. Este endpoint existente no exige X-Codigo-Sistema.
+No afirmar que todos los endpoints tienen el mismo mecanismo de autenticacion.
+No dar por existente /actuator/health: no se verifico y el pom no incluye starter actuator.
+
+## 6. Altas individuales e IDs automaticos
+
+Implementadas en DatosController y ImportacionService, reutilizan validaciones CSV.
+
+### Grupo
+
+POST /api/grupos, JSON minimo:
+
+```json
+{"nombre":"Primero C","horaSalida":"14:00"}
 ```
 
-No se desean variables de entorno para Project ID / Database ID.
+Nombre obligatorio, horario opcional. Al no enviar idGrupo calcula mayor ID
+numerico registrado + 1. Coleccion vacia empieza en 1, limite 1000.
 
-`application.properties`:
+### Alumno
 
-```properties
-server.port=${PORT:8080}
-server.address=0.0.0.0
-```
-
-## 4. Colecciones Firestore
-
-Principales:
-
-- `alumnos`
-- `grupo`
-- `registro`
-- `autorizacionesSalida`
-- `usuariosSistema`
-- `systemParams`
-
-### alumnos
-
-Campos conceptuales:
+POST /api/alumnos, JSON de ejemplo ficticio:
 
 ```json
 {
-  "idAlumno": "AL-0001",
-  "nombre": "Manuel Damian",
-  "apellidoPaterno": "Guinto",
-  "apellidoMaterno": "Méndez",
-  "nombreCompleto": "Manuel Damian Guinto Méndez",
-  "idGrupo": "3",
-  "fingerprintId": 1,
-  "iniciales": "MSGG",
-  "codigoTutorHash": "1234",
-  "activo": true
+  "nombre":"Ana Maria",
+  "apellidoPaterno":"Lopez",
+  "apellidoMaterno":"Perez",
+  "idGrupo":"4",
+  "tutor":{
+    "nombre":"Nombre del tutor",
+    "parentesco":"Madre",
+    "telefono":"5551234567",
+    "telefonoAlternativo":"",
+    "correo":"tutor@example.com"
+  }
 }
 ```
 
-Reglas:
-
-- Usar directamente `iniciales`.
-- No calcular iniciales desde el nombre.
-- Si falta `nombreCompleto`, construirlo con nombre + apellidos.
-
-### grupo
-
-```json
-{
-  "idGrupo": "3",
-  "nombre": "1° B",
-  "activo": true,
-  "horaSalida": "14:00"
-}
-```
-
-### systemParams
-
-```json
-{
-  "minutosToleranciaSalida": 20,
-  "requiereAutorizacionSalida": true
-}
-```
-
-## 5. Lógica de asistencia
-
-Endpoint:
-
-```text
-POST /api/asistencia/registrar
-```
-
-Body:
-
-```json
-{"fingerprintId": 1}
-```
-
-Reglas:
-
-- Primer escaneo: entrada (`EntradaRegistrada`).
-- Segundo escaneo: salida si está permitida.
-- Cuando entrada y salida ya existen, el registro queda sellado.
-- Un escaneo adicional el mismo día devuelve: `Debe esperar al día de mañana para poder registrar su entrada nuevamente`.
-- Al día siguiente se crea un nuevo documento.
-- ID conceptual: `fingerprintId_yyyy-MM-dd`.
-
-## 6. Tipos de salida y etiquetas del portal
-
-### Salida normal
-
-Cuando se cumple la hora del grupo con tolerancia.
-
-Etiqueta visible:
-
-```text
-Completado
-```
-
-### Salida anticipada
-
-Cuando la salida fue autorizada por:
-
-- `ALUMNO`
-- `GRUPO`
-
-Etiqueta visible:
-
-```text
-Salida anticipada
-```
-
-No debe mostrarse como “Completado”.
-
-### Salida general
-
-Autorización para toda la escuela.
-
-Etiqueta visible:
-
-```text
-Salida General
-```
-
-## 7. Autorizaciones
-
-Endpoint:
-
-```text
-POST /api/autorizaciones
-```
-
-### ALUMNO
-
-```json
-{
-  "tipo": "ALUMNO",
-  "iniciales": "MSGG",
-  "idUsuarioAutoriza": "TMARTINEZ",
-  "motivo": "Solicitud del tutor"
-}
-```
-
-Solo una por alumno por día.
-
-### GRUPO
-
-```json
-{
-  "tipo": "GRUPO",
-  "idGrupo": "3",
-  "idUsuarioAutoriza": "TMARTINEZ",
-  "motivo": "Salida anticipada del grupo"
-}
-```
-
-Solo una por grupo por día.
-
-### GENERAL
-
-```json
-{
-  "tipo": "GENERAL",
-  "horaSalidaGeneral": "12:30",
-  "idUsuarioAutoriza": "TMARTINEZ",
-  "motivo": "Reunión docente"
-}
-```
-
-Reglas:
-
-- Solo una salida general activa por día.
-- No actualizar masivamente todos los registros.
-- Si hubo entrada y no salida real, mostrar virtualmente `horaSalidaGeneral`.
-- Estado visual: `SalidaGeneral` / “Salida General”.
-- Mostrar quién autorizó y motivo.
-- Si ya existe salida real, conservarla.
-- Si no hubo entrada, no inventar salida.
-- Si el alumno escanea después de una salida general, no modificar `registro`.
-- Si ya existe GENERAL, bloquear nuevas autorizaciones ALUMNO y GRUPO.
-
-## 8. Estados de grupo
-
-Prioridad:
-
-1. `SALIDA_GENERAL`
-2. `SALIDA_POR_AUTORIZACION`
-3. `SALIDA_POR_HORARIO`
-4. `PENDIENTE`
-
-Respuesta conceptual:
-
-```java
-public record GrupoResponse(
-    String idGrupo,
-    String nombre,
-    String horaSalida,
-    Boolean activo,
-    String estadoSalida,
-    Boolean salidaHabilitada,
-    String horaSalidaEfectiva
-) {}
-```
-
-## 9. Endpoints principales
-
-```text
-POST /api/asistencia/registrar
-POST /api/autorizaciones
-POST /api/alumnos/importar
-GET  /api/alumnos/consulta
-DELETE /api/registros/limpieza
-GET /api/acceso/validar?codigo=...
-GET /api/grupos?codigo=...
-GET /api/ping
-```
-
-## 10. Frontend React
-
-Stack:
-
-- React.
-- Vite.
-- Tailwind.
-- Responsive.
-
-Estilo:
-
-- CETIS 117.
-- Guinda brillante (`#941F32`).
-- Guinda oscuro (`#741827`).
-- Dorado.
-- Crema.
-- Blanco.
-
-### Vista tutor
-
-Muestra:
-
-- datos del alumno.
-- entradas.
-- salidas.
-- último registro.
-- bitácora.
-- tutor.
-- fecha.
-- entrada.
-- salida.
-- estado.
-- autorizado por.
-- motivo.
-
-Estados visibles:
-
-- `Completado`
-- `Salida anticipada`
-- `Salida General`
-- `EntradaRegistrada`
-
-### Vista administrativa
-
-Incluye:
-
-- listado de alumnos.
-- filtros.
-- consulta de registro.
-- autorización ALUMNO.
-- autorización GRUPO.
-- salida GENERAL.
-- estado de grupos.
-
-Columnas principales:
-
-- Alumno.
-- Iniciales.
-- Grupo.
-- Acciones.
-
-Mantener botón **Cerrar sesión**.
-
-## 11. Versiones trabajadas
-
-### Backend
-
-- v11: estados de grupos.
-- v12: salida GENERAL.
-- v13: estado `SalidaGeneral` en consulta.
-- v14: distinción de `SalidaAnticipada`.
-
-Archivo generado recientemente:
-
-```text
-cetis117-asistencia-v14.zip
-```
-
-### Frontend
-
-- v10: botón cerrar sesión restaurado.
-- v11: salida general.
-- v12: salida general + bloqueo de autorizaciones.
-- v13: etiqueta `Salida anticipada`.
-
-Archivo generado recientemente:
-
-```text
-cetis117-registro-alumnos-react-v13.zip
-```
-
-IMPORTANTE: el proyecto frontend real usado localmente está en:
-
-```text
-C:\ZONAD\zdRegistroAlumnos\fe\cetis117-registro-alumnos-react-v1
-```
-
-Aunque los ZIP generados tengan números mayores, Firebase debe apuntar al folder real elegido por el usuario.
-
-## 12. Despliegue backend a Cloud Run
-
-Desde la carpeta que contiene `pom.xml` y `src`:
+Todos obligatorios salvo telefonoAlternativo. Grupo debe existir.
+Calcula mayor idAlumno + 1, asigna fingerprintId igual al ID, genera iniciales
+y codigo aleatorio de seis digitos libre en la lectura actual de Firestore.
+Devuelve ID y codigoTutorHash para informar al operador/tutor.
+Enrolar luego la huella fisica usando ese ID.
+
+- Mayor ID se calcula numericamente considerando ID del documento y campo ID;
+  no usar orden lexicografico ni cantidad de documentos.
+- Alta automatica usa create exclusivo. Si existe conflicto concurrente, HTTP 409
+  y pedir volver a guardar: no sobrescribe el registro de otra persona.
+- Se mantiene compatibilidad para clientes que envian ID explicito: actualiza
+  mediante merge; conserva fechas de creacion y horario de grupo existente.
+- En actualizaciones de alumno conserva codigo de tutor si no viene uno explicito.
+- El formulario React ya NO pide ID de alumno ni ID de grupo al crear un grupo.
+  Seleccionar el grupo del alumno sigue siendo obligatorio.
+- Si se borra el ID mas alto, puede reutilizarse: el algoritmo usa el maximo
+  actualmente existente, no una secuencia historica persistente.
+
+## 7. Importacion CSV
+
+- CSV UTF-8 separado por comas, admite BOM, comillas y comas dentro de comillas.
+- POST multipart/form-data, nombre exacto del campo: file, tipo File en Postman.
+- No fijar Content-Type manualmente en navegador/Postman; conservar boundary.
+- Limite configurado 10 MB por archivo y por peticion multipart completa.
+- Importar grupos antes de alumnos. CSV sigue requiriendo IDs explicitos;
+  sirve para insertar y actualizar por ID. No se cambio a ID automatico en CSV.
+- Validar TODAS las filas antes de escribir; acumula campos faltantes y fallas.
+- Cualquier error de validacion: HTTP 400, cero escrituras y todos los errores
+  por fila/campo. La primera fila de datos es 2 (encabezado es 1).
+- Respuesta de fallo: error, registrosImportados=0, insertados=0,
+  actualizados=0, totalErrores y errores[].
+- Exito: registrosImportados, insertados, actualizados, rechazados=0, errores=[].
+- Conserva campos adicionales por merge, fechas iniciales existentes y horarios
+  de grupos existentes. Ignora fechas del CSV y usa timestamps de la aplicacion.
+- activo: true/false; vacio predetermina true.
+- Horario admite HH:mm o fraccion Excel; 0,583333333333333 entre comillas = 14:00.
+- Tutor admite columnas tutor.nombre, tutor.parentesco, etc., y nombres anteriores
+  tutorNombre, tutorParentesco, tutorTelefono, tutorTelefonoAlternativo, tutorCorreo.
+- Nombre, ambos apellidos, iniciales, codigo de tutor y grupo requeridos para alumno;
+  todos los datos de tutor salvo telefono alternativo son obligatorios.
+- Lotes de hasta 400 escrituras. No hay transaccion global: un fallo de infraestructura
+  entre lotes puede dejar cambios parciales aunque la validacion previa sea completa.
+- Unicidad de codigo de tutor se valida contra lectura previa, sin bloqueo global;
+  evitar altas/importaciones simultaneas hasta reforzar esta garantia si se requiere.
+
+## 8. Limpieza de datos
+
+DELETE /api/datos/limpieza?confirmacion=ELIMINAR_ALUMNOS_Y_GRUPOS
+requiere X-Codigo-Sistema. Elimina TODOS los documentos de alumnos y grupo,
+por lotes de 400. No elimina registro, autorizacionesSalida, usuariosSistema,
+systemParams ni huellas fisicas. Puede dejar referencias historicas huerfanas;
+reutilizar IDs puede asociar registros antiguos con otras personas.
+No ejecutar junto con altas, importaciones o registro de asistencia.
+No se ejecutaron borrados reales en esta conversacion.
+
+/api/registros/limpieza conserva el mecanismo anterior por dias. Usa fecha de
+entrada anterior al limite, predetermina 7 dias. Falta validar rango positivo.
+El controlador actual no exige codigo; pendiente revisar si se endurece acceso.
+
+## 9. React: experiencia y restricciones
+
+App distingue session.tipoAcceso SISTEMA y TUTOR.
+AdminDashboard contiene CatalogRegistration con opciones:
+- Alta de grupo: nombre y hora.
+- Alta de alumno: nombre/apellidos, grupo y datos del tutor.
+- Alta masiva: lista Registrar grupos / Registrar alumnos y selector CSV.
+- Confirma ID asignado, resumen insertados/actualizados/rechazados y codigo tutor.
+- Muestra lista de errores por fila/campo; bloquea doble envio mientras guarda.
+- Al guardar refresca consultas de alumnos y grupos.
+
+CatalogRegistration solo se integra en AdminDashboard, no en TutorDashboard.
+Mantener consulta de tutores, filtros, autorizaciones, salida general, boton
+Cerrar sesion, titulo Control de Asistencia y estilo guinda/dorado/crema.
+Fechas visibles: DD/MM/YYYY.
+api.js soporta JSON y FormData y conserva detalles de validacion del backend.
+
+## 10. ESP32 y R307S (reemplaza la referencia antigua al GM60)
+
+Archivo: arduino/lectorRegistraAlumnos/lectorRegistraAlumnos.ino.
+
+- Lector usado en las pruebas: R307S; libreria Adafruit_Fingerprint.
+- Serial2, 57600 baudios; amarillo -> GPIO16 RX2, verde -> GPIO17 TX2.
+- Rojo -> alimentacion 5V apropiada; negro -> GND comun.
+- Monitor Serial a 115200, comando registrar, ID, dos capturas y storeModel.
+- Enrolamiento aun conserva limite original 1..127: confirmar capacidad real
+  del lector antes de ampliarlo, aunque backend permita IDs 1..1000.
+- Dependencias adicionales: paquete ESP32, ArduinoJson 7.x y LiquidCrystal_I2C
+  con API init()/backlight(). Error ArduinoJson.h ausente se resuelve instalando
+  ArduinoJson de Benoit Blanchon, no Adafruit GFX.
+- Configuracion de red en config.h; SSID configurado Zona-D. Contrasena solo en
+  configuracion local, no copiar a contexto ni publicar credenciales.
+- HTTPS usa GTS R1 y R4 en certificado.h, fuentes PEM de pki.goog; no setInsecure.
+- NTP time.google.com/pool.ntp.org, desfase UTC-6 para LCD. Sin hora valida: --:--.
+
+Al reconocer huella: POST a la URL Cloud Run /api/asistencia/registrar con
+finger.fingerID. Interpreta resultado/mensaje/nombre. ALUMNO_NO_REGISTRADO indica
+alumno inexistente o inactivo. Huella no reconocida localmente no invoca REST.
+No retransmitir automaticamente el POST ante fallo: pudo procesarse y otra
+lectura podria convertirse en salida. No hay cola offline.
+
+### LCD actual
+
+20 columnas x 4 filas, I2C 0x27. SDA GPIO21, SCL GPIO22.
+- Fila 1 siempre: Cetis 117 a izquierda y HH:mm a derecha.
+- Fila 2 siempre vacia.
+- Filas 3/4: mensajes cortos completos, ajuste por palabras, SIN paginacion.
+- Verificando alumno... al detectar dedo.
+- Resume resultado (Entrada registrada/Bienvenido, Salida registrada/Buen regreso,
+  Alumno no registrado, etc.). Nombre y mensaje originales siguen por Serial.
+- Resultados/errores duran 10 segundos y vuelven a Coloca tu dedo.
+- Exige retirar dedo y pausa minima entre lecturas; no acepta nuevas durante resultado.
+- Sin WiFi: No disponible temporalmente...; no registra asistencia.
+- Revisa WiFi cada 10 minutos y reconecta si falta; detecta desconexion para aviso.
+- GET /api/ping cada 5 minutos si hay red y hora valida. No toca Firestore.
+- HTTP, ping y enrolamiento aun bloquean: pueden retrasar reloj y temporizadores.
+- Si LCD ausente en 0x27, continua por Serial. Reiniciar despues de conectarla.
+- Modulo LCD I2C de 5V puede requerir conversor bidireccional 3.3V/5V para SDA/SCL.
+  No conectar pull-ups a 5V directo a GPIO ESP32.
+
+### Problema de alimentacion observado
+
+El usuario reporto apagado de LCD/lector al alimentar ambos desde 5V de la
+placa por USB de laptop. Log repite Brownout detector was triggered despues
+que detecta lector y cuenta 2 huellas, cerca de activar WiFi.
+Esto confirma caida de voltaje/reinicios, no demora de deteccion del sensor.
+No desactivar detector como solucion. Probar cable/puerto y modulos por separado.
+Si usa fuente externa regulada de 5V para perifericos: tierras comunes y no unir
+5V externo a VIN/5V de ESP32 alimentada por USB sin verificar la placa.
+La falta de LCD en 0x27 puede ser alimentacion, conexion o direccion; no esta
+confirmada una unica causa. Falta prueba fisica de estabilidad y escaneo I2C.
+
+No hay arduino-cli disponible: cambios del sketch no fueron compilados ni
+cargados por el agente; usuario los compila/carga con Arduino IDE.
+
+## 11. Verificacion realizada
+
+- npm run build exitoso despues de los cambios de React.
+- mvn test: 9 pruebas, cero fallos/errores al finalizar asignacion automatica.
+- Pruebas incluyen IDs numericos (vacio, 9/10, maximo y limite 1000), alta automatica
+  de alumno, tutor anidado, rechazo de tutor como operador, CSV sin escrituras
+  ante errores, campos faltantes multiples y actualizacion de grupo.
+- No se realizaron altas/borrados reales como pruebas del agente.
+- Se verificaron ping local y publico; no se hizo QA visual automatizado del portal.
+- Ultimos servidores locales iniciados: Vite http://localhost:5173 y Spring Boot
+  http://localhost:8080. No asumir que continuan vivos al retomar: comprobar.
+
+## 12. Git y estado de trabajo
+
+- Remoto: https://github.com/manuelguinto/zdRegistroAlumnos.git
+- Rama: main.
+- Ultimo commit subido: bc70a9a, Agrega altas administrativas con IDs automaticos y carga CSV.
+- Push a origin/main exitoso, desde 54233bd hasta bc70a9a.
+- Se subieron 8 archivos de codigo, pruebas y documentacion; no compilados/caches.
+- Quedaron cambios locales generados en dist, target, node_modules/.vite y un
+  temporal ~$ de Excel. Algunos compilados/dependencias ya estaban versionados;
+  no confundirlos con cambios nuevos de fuente ni borrarlos sin revisar.
+- Esta actualizacion de contexto se crea DESPUES de ese push; aun no tiene commit/push.
+- Revisar manejo de credenciales en archivos de configuracion antes de futuros pushes.
+
+## 13. Guias disponibles
+
+- data/Servicios_REST_CETIS117.html: guia autonoma con endpoints y ejemplos PowerShell.
+- services/cetis117-asistencia-v3/IMPORTACION_CSV.md.
+- services/cetis117-asistencia-v3/ALTAS_INDIVIDUALES.md.
+- arduino/lectorRegistraAlumnos/README.md: contiene historia de disposiciones LCD;
+  prevalece la ultima seccion Resultados en una sola pantalla, no las paginas anteriores.
+- data/CONTEXTO_CETIS117_CODEX.md: referencia funcional anterior; este contexto
+  actualiza estado y decisiones posteriores.
+
+## 14. Comandos para continuar
+
+Backend local, desde su carpeta:
 
 ```powershell
-gcloud run deploy zdregistroalumnos `
-  --source . `
-  --region us-central1 `
-  --project zona-d `
-  --allow-unauthenticated
+mvn test
+mvn spring-boot:run
 ```
 
-## 13. Firebase Hosting
-
-Proyecto Firebase Hosting:
-
-- Project ID: `zdcontrolasistencia`
-- Nombre: `zdControlAsistencia`
-- Project Number: `938892389655`
-
-El frontend local real está en:
-
-```text
-C:\ZONAD\zdRegistroAlumnos\fe\cetis117-registro-alumnos-react-v1
-```
-
-`firebase.json` debe apuntar a:
-
-```text
-fe/cetis117-registro-alumnos-react-v1/dist
-```
-
-Build:
+Backend Cloud Run, desde services/cetis117-asistencia-v3:
 
 ```powershell
-cd C:/ZONAD/zdRegistroAlumnos/fe/cetis117-registro-alumnos-react-v1
+gcloud run deploy zdregistroalumnos --source . --region us-central1 --project zona-d --quiet
+```
+
+Conservar permisos actuales. No agregar --allow-unauthenticated para cada deploy:
+la revision automatica rechazo previamente ese cambio potencial de seguridad;
+el despliegue sin ese parametro funciono.
+
+Frontend, desde fe/cetis117-registro-alumnos-react-v1:
+
+```powershell
+npm run dev
 npm run build
 ```
 
-Volver a raíz:
+Hosting, desde la raiz:
 
 ```powershell
-cd ../..
+firebase deploy --only hosting --project zdcontrolasistencia --non-interactive
 ```
 
-Deploy:
+Ping publico:
 
 ```powershell
-firebase deploy --only hosting --project zdcontrolasistencia
+Invoke-RestMethod 'https://zdregistroalumnos-482614074090.us-central1.run.app/api/ping'
 ```
 
-No es necesario repetir `firebase init` si `firebase.json` ya está correcto.
+En el entorno del agente, mvn/npm/gcloud/firebase pueden requerir escalacion
+por accesos a dependencias, procesos auxiliares o red. No eludir restricciones.
 
-## 14. Cold start de Cloud Run
+## 15. Pendientes y limites
 
-Problema observado:
-
-- Cuando Cloud Run escala a cero, la primera petición puede tardar alrededor de 19 segundos por el arranque de Spring Boot.
-
-Estrategia elegida:
-
-- Usar Google Cloud Scheduler.
-- Hacer ping cada 5 minutos.
-- Horario: 06:00 a 15:00.
-
-## 15. Endpoint /api/ping
-
-Se decidió crear un endpoint controlado que no toque Firestore:
-
-```java
-package mx.edu.cetis117.asistencia.controller;
-
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
-
-@RestController
-public class PingController {
-
-    @GetMapping("/api/ping")
-    public Map<String, String> ping() {
-        return Map.of(
-                "status", "OK",
-                "service", "CETIS117 Asistencia"
-        );
-    }
-}
-```
-
-URL:
-
-```text
-https://zdregistroalumnos-482614074090.us-central1.run.app/api/ping
-```
-
-Respuesta:
-
-```json
-{
-  "status": "OK",
-  "service": "CETIS117 Asistencia"
-}
-```
-
-Este endpoint:
-
-- no consulta alumnos.
-- no consulta grupos.
-- no consulta autorizaciones.
-- no consulta parámetros.
-- no escribe en Firestore.
-- responde solo en memoria.
-
-## 16. Cloud Scheduler
-
-Habilitar servicio:
-
-```powershell
-gcloud services enable cloudscheduler.googleapis.com --project zona-d
-```
-
-### Cada 5 minutos de 06:00 a 14:55
-
-```powershell
-gcloud scheduler jobs create http mantener-zdregistroalumnos-activo `
-  --location=us-central1 `
-  --schedule="*/5 6-14 * * *" `
-  --time-zone="America/Mexico_City" `
-  --uri="https://zdregistroalumnos-482614074090.us-central1.run.app/api/ping" `
-  --http-method=GET `
-  --project=zona-d
-```
-
-### Último ping a las 15:00
-
-```powershell
-gcloud scheduler jobs create http mantener-zdregistroalumnos-1500 `
-  --location=us-central1 `
-  --schedule="0 15 * * *" `
-  --time-zone="America/Mexico_City" `
-  --uri="https://zdregistroalumnos-482614074090.us-central1.run.app/api/ping" `
-  --http-method=GET `
-  --project=zona-d
-```
-
-Probar manualmente:
-
-```powershell
-gcloud scheduler jobs run mantener-zdregistroalumnos-activo `
-  --location=us-central1 `
-  --project=zona-d
-```
-
-Consultar job:
-
-```powershell
-gcloud scheduler jobs describe mantener-zdregistroalumnos-activo `
-  --location=us-central1 `
-  --project=zona-d
-```
-
-Este mecanismo reduce la probabilidad de cold start, pero Cloud Run aún puede reciclar instancias.
-
-Alternativa más fuerte:
-
-```powershell
-gcloud run services update zdregistroalumnos `
-  --min=1 `
-  --region=us-central1 `
-  --project=zona-d
-```
-
-Pero `min-instances=1` puede costar más al mantener una instancia activa.
-
-## 17. Actuator health
-
-Endpoint existente:
-
-```text
-/actuator/health
-```
-
-Sirve para indicar si Spring Boot está vivo.
-
-Normalmente devuelve:
-
-```json
-{"status":"UP"}
-```
-
-Se prefirió `/api/ping` porque sabemos exactamente qué código ejecuta y garantiza que no se toca Firestore.
-
-## 18. Presentación para Dirección
-
-Se generó una presentación HTML:
-
-```text
-Presentacion_Control_Asistencia_CETIS117.html
-```
-
-Incluye:
-
-- objetivo.
-- flujo con huella.
-- portal de acceso.
-- vista para padres.
-- módulo administrativo.
-- salidas normales.
-- salidas anticipadas.
-- salida general.
-- arquitectura.
-- privacidad.
-- beneficios.
-- prueba piloto.
-
-## 19. Decisiones que deben conservarse
-
-1. Título: **Control de Asistencia**.
-2. Usar `iniciales` almacenadas; no calcularlas.
-3. Salida autorizada ALUMNO/GRUPO: **Salida anticipada**.
-4. Salida general: **Salida General**.
-5. Salida normal: **Completado**.
-6. GENERAL no actualiza masivamente todos los registros.
-7. Una salida real tiene prioridad sobre una salida general virtual.
-8. `/api/ping` no toca Firestore.
-9. Scheduler en proyecto `zona-d`.
-10. Firebase Hosting en `zdcontrolasistencia`.
-11. Frontend local actual: `fe/cetis117-registro-alumnos-react-v1`.
-12. Backend se despliega desde la carpeta con `pom.xml`.
-13. Mantener botón **Cerrar sesión**.
-14. Mantener diseño guinda/dorado/crema CETIS 117.
-
-## 20. Siguientes pasos
-
-1. Incorporar `PingController.java` al backend actual.
-2. Redesplegar Cloud Run.
-3. Probar `/api/ping`.
-4. Crear Cloud Scheduler.
-5. Verificar ejecuciones cada 5 minutos.
-6. Medir si disminuye el cold start de ~19 segundos.
-7. Validar en frontend:
-   - `Completado`
-   - `Salida anticipada`
-   - `Salida General`
-8. Continuar integración GM60 + ESP32 + backend + Firestore + portal.
-
-## 21. Comandos rápidos
-
-### Backend Cloud Run
-
-```powershell
-gcloud run deploy zdregistroalumnos `
-  --source . `
-  --region us-central1 `
-  --project zona-d `
-  --allow-unauthenticated
-```
-
-### Frontend build
-
-```powershell
-cd C:/ZONAD/zdRegistroAlumnos/fe/cetis117-registro-alumnos-react-v1
-npm run build
-```
-
-### Firebase deploy
-
-```powershell
-cd ../..
-firebase deploy --only hosting --project zdcontrolasistencia
-```
-
-### Ping
-
-```powershell
-curl.exe "https://zdregistroalumnos-482614074090.us-central1.run.app/api/ping"
-```
-
-### Scheduler manual
-
-```powershell
-gcloud scheduler jobs run mantener-zdregistroalumnos-activo `
-  --location=us-central1 `
-  --project=zona-d
-```
-
----
-
-**Fin del contexto actualizado.**
+1. Validar en ESP32 fisico alimentacion estable, direccion LCD y operacion conjunta.
+2. Compilar el sketch con dependencias indicadas y confirmar capacidad de huellas
+   antes de usar IDs mayores que 127 en enrolamiento.
+3. Probar en navegador las altas, mensajes de error y acceso exclusivo de sistema.
+4. Si se requieren escrituras concurrentes fuertes, reforzar unicidad del codigo
+   de tutor y atomicidad global de importaciones; no prometer esas garantias hoy.
+5. Revisar limpieza de historicos/reutilizacion de IDs y acceso al borrado antiguo
+   antes de usar reinicio de catalogos en produccion.
+6. Cloud Scheduler fue propuesto antes (ping cada 5 min, 06:00-15:00), pero no se
+   creo ni verifico en esta conversacion. No marcarlo como existente.
+7. Ping de ESP32 y Scheduler no garantizan que Cloud Run conserve una instancia;
+   no se configuro minimo de instancias en esta conversacion.
+8. Ordenar en una tarea separada los artefactos generados que ya estan versionados.
+9. Actualizar el contexto y hacer commit cuando se solicite; no subir automaticamente
+   contrasenas ni datos personales de alumnos/tutores.
