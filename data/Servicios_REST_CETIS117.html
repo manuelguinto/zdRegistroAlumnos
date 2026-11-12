@@ -68,5 +68,22 @@ Invoke-RestMethod -Method POST -Uri "$base/api/autorizaciones" `
 Invoke-RestMethod -Method POST -Uri "$base/api/autorizaciones" `
   -ContentType 'application/json' -Body $body</pre></section>
 <section id="registros"><span class="method">DELETE</span> <code>/api/registros/limpieza?dias=7</code><h2>Limpiar registros antiguos</h2><p>Elimina documentos de registro cuya fecha de entrada sea anterior al día actual menos los días indicados, con zona horaria America/Mexico_City. dias es opcional y por defecto vale 7.</p><aside class="danger"><strong>Operación destructiva existente.</strong> El controlador actual no exige código de acceso. Usa un entero positivo: el servicio actual no valida el rango. No elimina alumnos ni grupos.</aside><pre>Invoke-RestMethod -Method DELETE -Uri "$base/api/registros/limpieza?dias=7"</pre><h3>Respuesta ilustrativa</h3><pre>{"eliminados":25,"diasConservados":7}</pre></section>
+<section><h2>Altas individuales de grupos y alumnos</h2><p>Requieren X-Codigo-Sistema de un usuario activo del sistema y Content-Type application/json. Insertan IDs nuevos y actualizan los existentes. La administración React ofrece formularios individuales y carga CSV; no aparecen en la vista de tutores.</p>
+<h3>POST /api/grupos</h3><pre>$body = @{ nombre = 'Primero C'; horaSalida = '14:00' } | ConvertTo-Json
+Invoke-RestMethod -Method POST -Uri "$base/api/grupos" `
+  -Headers @{ 'X-Codigo-Sistema' = $codigo } `
+  -ContentType 'application/json' -Body $body</pre>
+<p>Nombre obligatorio. ID automático: mayor ID registrado + 1, hasta 1000. Hora opcional, por defecto 14:00; conserva el horario existente al actualizar.</p>
+<h3>POST /api/alumnos</h3><pre>$body = @{
+  nombre = 'Ana Maria'
+  apellidoPaterno = 'Lopez'; apellidoMaterno = 'Perez'; idGrupo = '4'
+  tutor = @{ nombre = 'Nombre tutor'; parentesco = 'Madre'
+    telefono = '5551234567'; correo = 'tutor@example.com' }
+} | ConvertTo-Json -Depth 3
+Invoke-RestMethod -Method POST -Uri "$base/api/alumnos" `
+  -Headers @{ 'X-Codigo-Sistema' = $codigo } `
+  -ContentType 'application/json' -Body $body</pre>
+<p>Grupo existente y datos del ejemplo obligatorios. Teléfono alternativo opcional. El ID del alumno se calcula como el mayor ID registrado + 1, hasta 1000. Genera iniciales, asigna fingerprintId igual al idAlumno y genera código del tutor, que devuelve en codigoTutorHash. Al actualizar conserva el código existente salvo envío explícito. El enrolamiento físico se realiza en el lector.</p></section>
 <footer>Referencia: controladores y servicios del repositorio local. Documento autónomo, sin dependencias externas ni ejecución de peticiones.</footer></main></body></html>
+
 

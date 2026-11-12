@@ -31,8 +31,79 @@ public class ImportacionService {
     }
 
     public Map<String, Object> importar(MultipartFile file, String coleccion, String codigo) throws Exception {
+        return importarDatos(file.getInputStream(), file.isEmpty(), coleccion, codigo);
+    }
+
+    public Map<String, Object> guardarIndividual(Map<String, Object> entrada, String coleccion, String codigo) throws Exception {
         autorizar(codigo);
-        if (file.isEmpty()) throw new IllegalArgumentException("El CSV esta vacio");
+        Map<String, Object> datos = new LinkedHashMap<>(entrada);
+        String clave = coleccion.equals("alumnos") ? "idAlumno" : "idGrupo";
+        boolean automatico = Objects.toString(datos.get(clave), "").isBlank();
+        String identificador = automatico ? siguienteId(firestore.collection(coleccion).get().get().getDocuments(), clave)
+                : id(Objects.toString(datos.get(clave), "").trim());
+        datos.put(clave, identificador);
+        boolean existe = firestore.collection(coleccion).document(identificador).get().get().exists();
+        if (coleccion.equals("alumnos")) {
+            datos.put("fingerprintId", identificador);
+            String nombre = String.join(" ", Objects.toString(datos.get("nombre"), ""),
+                    Objects.toString(datos.get("apellidoPaterno"), ""), Objects.toString(datos.get("apellidoMaterno"), ""));
+            StringBuilder iniciales = new StringBuilder();
+            for (String palabra : nombre.trim().split("\\s+")) if (!palabra.isBlank()) iniciales.append(palabra.charAt(0));
+            datos.put("iniciales", iniciales.toString());
+            // En actualizaciones conserva el codigo del tutor salvo envio explicito.
+            if (Objects.toString(datos.get("codigoTutorHash"), "").isBlank()) {
+                String anterior = existe ? firestore.collection(coleccion).document(identificador).get().get().getString("codigoTutorHash") : null;
+                String nuevo = anterior;
+                java.security.SecureRandom random = new java.security.SecureRandom();
+                while (nuevo == null || nuevo.isBlank()) {
+                    String candidato = Integer.toString(100000 + random.nextInt(900000));
+                    if (firestore.collection("alumnos").whereEqualTo("codigoTutorHash", candidato).limit(1).get().get().isEmpty()) nuevo = candidato;
+                }
+                datos.put("codigoTutorHash", nuevo);
+            }
+            Object tutor = datos.remove("tutor");
+            if (tutor instanceof Map<?, ?> campos) campos.forEach((k, v) -> datos.put("tutor." + k, v));
+        }
+        StringWriter texto = new StringWriter();
+        try (CSVPrinter csv = new CSVPrinter(texto, CSVFormat.DEFAULT)) {
+            csv.printRecord(datos.keySet());
+            csv.printRecord(datos.values().stream().map(v -> Objects.toString(v, "")).toList());
+        }
+        Map<String, Object> resultado = new LinkedHashMap<>(importarDatos(
+                new ByteArrayInputStream(texto.toString().getBytes(StandardCharsets.UTF_8)), false, coleccion, codigo, automatico));
+        resultado.put(clave, identificador);
+        if (coleccion.equals("alumnos")) resultado.put("codigoTutorHash", datos.get("codigoTutorHash"));
+        return resultado;
+    }
+
+    private Map<String, Object> importarDatos(InputStream contenido, boolean vacio, String coleccion, String codigo) throws Exception {
+        return importarDatos(contenido, vacio, coleccion, codigo, false);
+    }
+
+    private Map<String, Object> importarDatos(InputStream contenido, boolean vacio, String coleccion, String codigo, boolean soloCrear) throws Exception {
+        try (InputStream stream = contenido) {
+            return procesarImportacion(stream, vacio, coleccion, codigo, soloCrear);
+        } catch (java.util.concurrent.ExecutionException ex) {
+            if (soloCrear && ex.getCause() instanceof com.google.api.gax.rpc.AlreadyExistsException)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Otro usuario registro el mismo ID. Vuelve a guardar para asignar el siguiente.");
+            throw ex;
+        }
+    }
+
+    static String siguienteId(List<? extends DocumentSnapshot> documentos, String clave) {
+        int maximo = 0;
+        for (DocumentSnapshot doc : documentos) {
+            for (String valor : List.of(doc.getId(), Objects.toString(doc.get(clave), ""))) {
+                if (valor.matches("[0-9]{1,4}")) maximo = Math.max(maximo, Integer.parseInt(valor));
+            }
+        }
+        if (maximo >= 1000) throw new IllegalArgumentException("Se alcanzo el limite de IDs (1000)");
+        return Integer.toString(maximo + 1);
+    }
+
+    private Map<String, Object> procesarImportacion(InputStream contenido, boolean vacio, String coleccion, String codigo, boolean soloCrear) throws Exception {
+        autorizar(codigo);
+        if (vacio) throw new IllegalArgumentException("El CSV esta vacio");
         boolean alumnos = coleccion.equals("alumnos");
         List<Map<String, Object>> errores = new ArrayList<>();
         Map<String, Map<String, Object>> pendientes = new LinkedHashMap<>();
@@ -48,7 +119,7 @@ public class ImportacionService {
             grupos.add(doc.getId());
 
         Set<String> ids = new HashSet<>();
-        try (PushbackReader reader = new PushbackReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8), 1)) {
+        try (PushbackReader reader = new PushbackReader(new InputStreamReader(contenido, StandardCharsets.UTF_8), 1)) {
             int primero = reader.read();
             if (primero != -1 && primero != '\uFEFF') reader.unread(primero);
             try (CSVParser parser = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true)
@@ -95,7 +166,11 @@ public class ImportacionService {
         int insertados = 0, actualizados = 0, operaciones = 0;
         WriteBatch batch = firestore.batch();
         for (var item : pendientes.entrySet()) {
-            batch.set(firestore.collection(coleccion).document(item.getKey()), item.getValue(), SetOptions.merge());
+            if (soloCrear) {
+                if (existentes.containsKey(item.getKey()))
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "El ID acaba de ser registrado. Vuelve a guardar.");
+                batch.create(firestore.collection(coleccion).document(item.getKey()), item.getValue());
+            } else batch.set(firestore.collection(coleccion).document(item.getKey()), item.getValue(), SetOptions.merge());
             if (existentes.containsKey(item.getKey())) actualizados++; else insertados++;
             if (++operaciones % 400 == 0) { batch.commit().get(); batch = firestore.batch(); }
         }

@@ -7,7 +7,7 @@ async function request(path, options = {}) {
     ...options,
     headers: {
       Accept: 'application/json',
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {}),
     },
   })
@@ -21,11 +21,13 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       data?.error ||
         data?.mensaje ||
         `Error HTTP ${response.status}`,
     )
+    error.detalles = data?.errores || []
+    throw error
   }
 
   return data
@@ -63,3 +65,19 @@ export function crearAutorizacion(payload) {
 }
 
 export { API_BASE_URL }
+
+export function guardarCatalogo(tipo, datos, codigo) {
+  return request(`/api/${tipo}`, {
+    method: 'POST',
+    headers: { 'X-Codigo-Sistema': codigo },
+    body: JSON.stringify(datos),
+  })
+}
+
+export function importarCatalogo(tipo, archivo, codigo) {
+  const body = new FormData()
+  body.append('file', archivo)
+  return request(`/api/${tipo}/importar`, {
+    method: 'POST', headers: { 'X-Codigo-Sistema': codigo }, body,
+  })
+}

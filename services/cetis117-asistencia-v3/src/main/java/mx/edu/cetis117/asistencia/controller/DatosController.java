@@ -13,6 +13,18 @@ public class DatosController {
 
     public DatosController(ImportacionService service) { this.service = service; }
 
+    @PostMapping(value = "/api/grupos", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public Map<String, Object> grupo(@RequestBody Map<String, Object> datos,
+            @RequestHeader("X-Codigo-Sistema") String codigo) throws Exception {
+        return service.guardarIndividual(datos, "grupo", codigo);
+    }
+
+    @PostMapping(value = "/api/alumnos", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public Map<String, Object> alumno(@RequestBody Map<String, Object> datos,
+            @RequestHeader("X-Codigo-Sistema") String codigo) throws Exception {
+        return service.guardarIndividual(datos, "alumnos", codigo);
+    }
+
     @PostMapping(value = "/api/grupos/importar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String, Object> grupos(@RequestPart("file") MultipartFile file,
             @RequestHeader("X-Codigo-Sistema") String codigo) throws Exception {

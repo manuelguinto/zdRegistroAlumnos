@@ -12,6 +12,62 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.nio.charset.StandardCharsets;
 
 class ImportacionServiceTest {
+    @Test void siguienteIdUsaMaximoNumericoYNoCantidadDeDocumentos() {
+        assertEquals("1", ImportacionService.siguienteId(List.of(), "idGrupo"));
+        DocumentSnapshot a = mock(DocumentSnapshot.class), b = mock(DocumentSnapshot.class);
+        when(a.getId()).thenReturn("9"); when(b.getId()).thenReturn("10");
+        assertEquals("11", ImportacionService.siguienteId(List.of(b, a), "idGrupo"));
+        when(b.get("idGrupo")).thenReturn("25");
+        assertEquals("26", ImportacionService.siguienteId(List.of(a, b), "idGrupo"));
+        when(b.getId()).thenReturn("1000");
+        assertThrows(IllegalArgumentException.class, () -> ImportacionService.siguienteId(List.of(b), "idGrupo"));
+    }
+    @Test void altaIndividualRechazaCodigoTutorAntesDeLeerCatalogos() throws Exception {
+        Firestore db = mock(Firestore.class);
+        var service = new ImportacionService(db, mock(UsuarioSistemaService.class));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> service.guardarIndividual(Map.of("idGrupo", "1", "nombre", "Primero"), "grupo", "tutor"));
+        verifyNoInteractions(db);
+    }
+
+    @Test void altaIndividualAlumnoGeneraDatosYGuardaTutorAnidado() throws Exception {
+        Firestore db = mock(Firestore.class);
+        UsuarioSistemaService usuarios = mock(UsuarioSistemaService.class);
+        when(usuarios.buscarPorCodigo("admin")).thenReturn(mock(DocumentSnapshot.class));
+        CollectionReference alumnos = mock(CollectionReference.class), grupos = mock(CollectionReference.class);
+        when(db.collection("alumnos")).thenReturn(alumnos);
+        when(db.collection("grupo")).thenReturn(grupos);
+        DocumentReference ref = mock(DocumentReference.class);
+        DocumentSnapshot nuevo = mock(DocumentSnapshot.class);
+        when(alumnos.document("1")).thenReturn(ref);
+        when(ref.get()).thenReturn(ApiFutures.immediateFuture(nuevo));
+        QuerySnapshot vacio = mock(QuerySnapshot.class), listado = mock(QuerySnapshot.class);
+        when(vacio.isEmpty()).thenReturn(true);
+        when(vacio.getDocuments()).thenReturn(List.of());
+        when(alumnos.get()).thenReturn(ApiFutures.immediateFuture(vacio));
+        Query consulta = mock(Query.class);
+        when(alumnos.whereEqualTo(eq("codigoTutorHash"), anyString())).thenReturn(consulta);
+        when(consulta.limit(1)).thenReturn(consulta);
+        when(consulta.get()).thenReturn(ApiFutures.immediateFuture(vacio));
+        QueryDocumentSnapshot grupo = mock(QueryDocumentSnapshot.class);
+        when(grupo.getId()).thenReturn("2");
+        when(listado.getDocuments()).thenReturn(List.of(grupo));
+        when(grupos.get()).thenReturn(ApiFutures.immediateFuture(listado));
+        WriteBatch batch = mock(WriteBatch.class);
+        when(db.batch()).thenReturn(batch);
+        when(batch.commit()).thenReturn(ApiFutures.immediateFuture(List.of()));
+        var datos = Map.<String, Object>of("nombre", "Ana Maria", "apellidoPaterno", "Lopez",
+                "apellidoMaterno", "Perez", "idGrupo", "2", "tutor", Map.of("nombre", "Tutor",
+                        "parentesco", "Madre", "telefono", "123", "correo", "a@b.com"));
+        var resultado = new ImportacionService(db, usuarios).guardarIndividual(datos, "alumnos", "admin");
+        assertEquals(1, resultado.get("insertados"));
+        assertTrue(resultado.get("codigoTutorHash").toString().matches("[0-9]{6}"));
+        assertEquals("1", resultado.get("idAlumno"));
+        verify(batch).create(eq(ref), argThat((Map<String, Object> d) -> d.get("fingerprintId").equals(1L)
+                && d.get("iniciales").equals("AMLP") && d.get("tutor") instanceof Map<?, ?>));
+        verify(batch, never()).set(any(DocumentReference.class), anyMap(), any(SetOptions.class));
+    }
+
     private CSVRecord fila(String csv) throws Exception {
         try (var parser = CSVFormat.DEFAULT.builder().setHeader().get().parse(new StringReader(csv))) {
             return parser.getRecords().getFirst();
@@ -67,6 +123,11 @@ class ImportacionServiceTest {
         assertEquals(0, resultado.get("rechazados"));
         verify(batch).set(eq(ref), argThat((Map<String, Object> d) -> !d.containsKey("horaSalida")), any(SetOptions.class));
         verify(batch).commit();
+        when(ref.get()).thenReturn(ApiFutures.immediateFuture(existente));
+        when(existente.exists()).thenReturn(true);
+        var individual = service.guardarIndividual(Map.of("idGrupo", "1", "nombre", "Nuevo nombre"), "grupo", "admin");
+        assertEquals(1, individual.get("actualizados"));
+        verify(batch, times(2)).commit();
     }
 
     @Test void acumulaTodosLosCamposFaltantesEnTodasLasFilas() throws Exception {

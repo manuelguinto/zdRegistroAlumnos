@@ -9,6 +9,7 @@ import AuthorizationModule from './AuthorizationModule'
 import GroupStatusModule from './GroupStatusModule'
 import TutorDashboard from './TutorDashboard'
 import GeneralExitModal from './GeneralExitModal'
+import CatalogRegistration from './CatalogRegistration'
 
 export default function AdminDashboard({
   codigo,
@@ -196,6 +197,8 @@ export default function AdminDashboard({
             {error}
           </div>
         )}
+
+        <CatalogRegistration codigo={codigo} grupos={grupos} onSaved={refrescarDespuesDeAutorizacion} />
 
         <div className="grid gap-5 xl:grid-cols-[1.7fr_0.8fr]">
           <AdminStudents
