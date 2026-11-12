@@ -1,0 +1,72 @@
+﻿<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CETIS 117 · Servicios REST</title>
+<style>body{margin:0;background:#f2f5f9;color:#24364b;font:16px/1.65 'Segoe UI',Arial,sans-serif}header{background:#143650;color:white;padding:40px max(24px,calc((100vw - 1050px)/2))}main{max-width:1050px;margin:auto;padding:24px}section{background:white;border:1px solid #dce5ee;border-radius:12px;padding:26px;margin-bottom:22px;scroll-margin-top:20px}h1{line-height:1.2}h2{font-size:23px}h3{font-size:16px}pre{background:#102337;color:#edf5ff;border-radius:8px;padding:18px;overflow:auto;font:13px/1.65 Consolas,monospace}code{font-family:Consolas,monospace}nav{display:flex;gap:14px;flex-wrap:wrap}a{color:#18749b}.method{font-weight:bold;color:#126448;background:#dff5eb;padding:4px 10px;border-radius:5px;font-size:13px}.danger{background:#fff0e8;border-left:4px solid #cb603d;padding:16px}li{margin:7px 0}footer{padding:20px;color:#52647a}@media print{section{break-inside:avoid}pre{white-space:pre-wrap;background:#eee;color:#111}header{background:white;color:#111}nav{display:none}}</style></head>
+<body><header><small>CONTROL DE ASISTENCIA / CETIS 117</small><h1>Guía de servicios REST</h1><p>Descripción y ejemplos de invocación · 11/11/2026</p></header><main>
+<section><h2>Preparación</h2><p>Guía del código local de services/cetis117-asistencia-v3. Los servicios nuevos deben desplegarse antes de usarse en Cloud Run. Ejemplos para PowerShell en Windows; esta página no ejecuta peticiones.</p>
+<pre>Set-Location 'C:\ZONAD\zdRegistroAlumnos'
+$base = 'http://localhost:8080'
+# Para Cloud Run, sustituir la URL base:
+# $base = 'https://zdregistroalumnos-482614074090.us-central1.run.app'
+$codigo = Read-Host 'Código de acceso'
+$codigoUrl = [uri]::EscapeDataString($codigo)</pre>
+<p>En importaciones y limpieza de catálogos, utiliza el codigoHash de un usuario activo de usuariosSistema. En consultas utiliza código de sistema o tutor según la operación. Sustituye los datos ficticios e identificadores por los correspondientes.</p>
+<nav><a href="#ping">Ping</a><a href="#importar-grupos">Importar grupos</a><a href="#importar-alumnos">Importar alumnos</a><a href="#csv">Reglas CSV</a><a href="#limpieza">Limpiar catálogos</a><a href="#asistencia">Asistencia</a><a href="#acceso">Acceso</a><a href="#grupos">Grupos</a><a href="#consulta">Alumnos</a><a href="#autorizaciones">Autorizaciones</a><a href="#registros">Limpiar registros</a></nav></section>
+<section id="ping"><span class="method">GET</span> <code>/api/ping</code><h2>Comprobar disponibilidad</h2><p>No requiere código, no consulta Firestore ni modifica datos.</p><pre>Invoke-RestMethod "$base/api/ping"</pre><h3>Respuesta</h3><pre>{"status":"OK","service":"CETIS117 Asistencia"}</pre><p>Puede consumirse periódicamente. Las llamadas no garantizan que Cloud Run mantenga una instancia activa. Para mantener capacidad disponible existe la configuración de <a href="https://docs.cloud.google.com/run/docs/configuring/min-instances">instancias mínimas</a>, con su costo correspondiente.</p></section>
+<section id="importar-grupos"><span class="method">POST</span> <code>/api/grupos/importar</code><h2>Importar grupos</h2><p>Inserta o actualiza documentos en la colección grupo. Importar grupos antes de alumnos. Requiere encabezado X-Codigo-Sistema y multipart/form-data con archivo en el campo file.</p><pre>curl.exe -X POST "$base/api/grupos/importar" `
+  -H "X-Codigo-Sistema: $codigo" `
+  -F 'file=@data/grupos_CETis117.csv'</pre><h3>CSV de grupos</h3><pre>idGrupo,nombre,horaSalida,activo,fechaCreacion
+1,Primero A,14:00,true,</pre><p>ID de 1 a 1000 y nombre obligatorio. Hora en HH:mm o fracción de día de Excel: <code>"0,583333333333333"</code> equivale a 14:00. Hora vacía significa 14:00. Al actualizar conserva el horario existente.</p></section>
+<section id="importar-alumnos"><span class="method">POST</span> <code>/api/alumnos/importar</code><h2>Importar alumnos</h2><p>Inserta o actualiza documentos de alumnos. Requiere encabezado X-Codigo-Sistema y multipart/form-data con archivo en el campo file.</p><pre>curl.exe -X POST "$base/api/alumnos/importar" `
+  -H "X-Codigo-Sistema: $codigo" `
+  -F 'file=@data/alumnos_CETis117.csv'</pre><h3>CSV de alumnos · datos ficticios</h3><pre>idAlumno,nombre,apellidoPaterno,apellidoMaterno,idGrupo,fingerprintId,iniciales,codigoTutorHash,tutor.nombre,tutor.parentesco,tutor.telefono,tutor.telefonoAlternativo,tutor.correo,activo,fechaRegistro,fechaActualizacion
+1,Ana,Lopez,Perez,1,1,ALP,012345,Tutor,Madre,5551234567,,tutor@example.com,true,,</pre>
+<ul><li>idAlumno y fingerprintId: 1 a 1000 y deben coincidir.</li><li>idGrupo debe existir.</li><li>codigoTutorHash: seis dígitos y no debe pertenecer a otro alumno.</li><li>Nombre, ambos apellidos, iniciales y datos del tutor obligatorios; teléfono alternativo opcional.</li><li>También admite tutorNombre, tutorParentesco, tutorTelefono, tutorTelefonoAlternativo y tutorCorreo.</li><li>No genera IDs ni códigos de tutor: deben venir completos desde la plantilla.</li></ul></section>
+<section id="csv"><h2>Reglas comunes de importación</h2><ul><li>CSV UTF-8 con separador coma; admite BOM y campos entrecomillados.</li><li>Máximo configurado: 10 MB por archivo y por petición multipart completa.</li><li>activo admite true o false; vacío significa true.</li><li>Actualiza por ID con merge, conservando campos adicionales.</li><li>Conserva fechaRegistro/fechaCreacion existente. Ignora fechas del CSV; las nuevas fechas utilizan el reloj de la aplicación. Actualiza fechaActualizacion del alumno.</li><li>Valida todas las filas antes de escribir. Si hay cualquier error, cancela toda la importación y devuelve HTTP 400 con todos los errores por fila y campo. Rechaza IDs repetidos dentro del CSV.</li><li>Analiza el archivo antes de escribir. Un CSV estructuralmente inválido rechaza la petición.</li><li>Escribe lotes de hasta 400 operaciones, sin transacción global. Una falla entre lotes puede dejar cambios parciales; puede reenviarse el archivo.</li><li>Evita importaciones o limpiezas simultáneas. La unicidad del código se comprueba sobre una lectura previa, sin bloqueo global.</li></ul>
+<h3>Respuesta ilustrativa</h3><pre>{
+  "error": "Importacion cancelada: corrija todos los errores del CSV",
+  "registrosImportados": 0,
+  "insertados": 0,
+  "actualizados": 0,
+  "totalErrores": 2,
+  "errores": [
+    {"fila": 4, "campo": "idGrupo", "error": "Grupo inexistente: 9"},
+    {"fila": 4, "campo": "nombre", "error": "Falta nombre"}
+  ]
+}</pre><p>La numeración incluye el encabezado: la primera fila de datos es la 2. Si hay errores de validación, devuelve HTTP 400 y registrosImportados, insertados y actualizados en cero. Corrige todas las fallas y reenvía el archivo.</p><h3>Errores de importación y limpieza de catálogos</h3><p><strong>400:</strong> petición inválida, archivo vacío, encabezado ausente, CSV inválido o confirmación incorrecta. <strong>403:</strong> código de sistema inválido. <strong>500:</strong> fallo interno o de infraestructura. Los errores de validación de filas se devuelven juntos con HTTP 400, sin guardar ninguna fila.</p></section>
+<section id="limpieza"><span class="method">DELETE</span> <code>/api/datos/limpieza</code><h2>Limpiar alumnos y grupos</h2><aside class="danger"><strong>Elimina todos los documentos de alumnos y grupo.</strong> Requiere código de sistema y confirmación exacta. Conserva históricos de asistencia, autorizaciones, usuarios, parámetros y huellas del lector físico. Reutilizar IDs puede asociar históricos con nuevas personas.</aside><pre>curl.exe -X DELETE "$base/api/datos/limpieza?confirmacion=ELIMINAR_ALUMNOS_Y_GRUPOS" `
+  -H "X-Codigo-Sistema: $codigo"</pre><h3>Respuesta ilustrativa</h3><pre>{"alumnos":100,"grupo":5}</pre><p>Opera por lotes de hasta 400 documentos. Una falla puede dejar limpieza parcial; repetir la petición permite terminarla. No ejecutar junto con importaciones o registro de asistencia.</p></section>
+<section id="asistencia"><span class="method">POST</span> <code>/api/asistencia/registrar</code><h2>Registrar lectura de huella</h2><p>El ESP32 envía el ID reconocido. El backend decide entrada, salida o bloqueo según el horario y las autorizaciones. El controlador actual no exige código de acceso.</p><pre>$body = @{ fingerprintId = 1 } | ConvertTo-Json
+Invoke-RestMethod -Method POST -Uri "$base/api/asistencia/registrar" `
+  -ContentType 'application/json' -Body $body</pre><p>La respuesta contiene resultado, mensaje, estado, idRegistro, idAutorizacion y nombreAlumno. Algunos valores pueden ser nulos según el resultado.</p></section>
+<section id="acceso"><span class="method">GET</span> <code>/api/acceso/validar?codigo=...</code><h2>Validar acceso</h2><p>Busca primero un usuario activo del sistema y luego un alumno activo por código de tutor. Identifica el perfil SISTEMA o TUTOR. Un código inválido se indica en la respuesta.</p><pre>Invoke-RestMethod "$base/api/acceso/validar?codigo=$codigoUrl"</pre></section>
+<section id="grupos"><span class="method">GET</span> <code>/api/grupos?codigo=...</code><h2>Consultar grupos</h2><p>Requiere código de sistema. Lista grupos activos con horario, estadoSalida y salidaHabilitada.</p><pre>Invoke-RestMethod "$base/api/grupos?codigo=$codigoUrl"</pre><p>Estados: PENDIENTE, SALIDA_POR_HORARIO, SALIDA_POR_AUTORIZACION y SALIDA_GENERAL.</p></section>
+<section id="consulta"><span class="method">GET</span> <code>/api/alumnos/consulta</code><h2>Consultar alumnos y asistencia</h2><p>codigo es obligatorio. Con código de sistema permite filtrar por nombre, idGrupo e iniciales. Con código de tutor devuelve únicamente el alumno asociado. Incluye datos del alumno, tutor y registros según las reglas de consulta.</p><pre># Sin filtros
+Invoke-RestMethod "$base/api/alumnos/consulta?codigo=$codigoUrl"
+# Filtros opcionales y combinables para sistema
+$nombreUrl = [uri]::EscapeDataString('Ana')
+Invoke-RestMethod "$base/api/alumnos/consulta?codigo=$codigoUrl&amp;idGrupo=1&amp;nombre=$nombreUrl&amp;iniciales=ALP"</pre></section>
+<section id="autorizaciones"><span class="method">POST</span> <code>/api/autorizaciones</code><h2>Autorizar salidas</h2><p>Recibe JSON con tipo, idUsuarioAutoriza y motivo. idUsuarioAutoriza debe ser un usuario activo existente. El controlador actual recibe este identificador en el cuerpo y no exige encabezado de código.</p><h3>Por alumno</h3><p>Busca iniciales almacenadas del alumno activo. Rechaza iniciales ambiguas. Solo permite una autorización de alumno por día.</p><pre>$body = @{
+  tipo = 'ALUMNO'
+  iniciales = 'ALP'
+  idUsuarioAutoriza = 'USUARIO_EXISTENTE'
+  motivo = 'Solicitud del tutor'
+} | ConvertTo-Json
+Invoke-RestMethod -Method POST -Uri "$base/api/autorizaciones" `
+  -ContentType 'application/json' -Body $body</pre><h3>Por grupo</h3><p>Solo permite una autorización por grupo y día.</p><pre>$body = @{
+  tipo = 'GRUPO'
+  idGrupo = '1'
+  idUsuarioAutoriza = 'USUARIO_EXISTENTE'
+  motivo = 'Salida anticipada del grupo'
+} | ConvertTo-Json
+Invoke-RestMethod -Method POST -Uri "$base/api/autorizaciones" `
+  -ContentType 'application/json' -Body $body</pre><h3>Salida general</h3><p>Una salida general activa por día. La consulta deriva la salida para alumnos con entrada sin salida real y conserva las salidas reales. Bloquea nuevas autorizaciones por alumno y grupo.</p><pre>$body = @{
+  tipo = 'GENERAL'
+  horaSalidaGeneral = '12:30'
+  idUsuarioAutoriza = 'USUARIO_EXISTENTE'
+  motivo = 'Reunion docente'
+} | ConvertTo-Json
+Invoke-RestMethod -Method POST -Uri "$base/api/autorizaciones" `
+  -ContentType 'application/json' -Body $body</pre></section>
+<section id="registros"><span class="method">DELETE</span> <code>/api/registros/limpieza?dias=7</code><h2>Limpiar registros antiguos</h2><p>Elimina documentos de registro cuya fecha de entrada sea anterior al día actual menos los días indicados, con zona horaria America/Mexico_City. dias es opcional y por defecto vale 7.</p><aside class="danger"><strong>Operación destructiva existente.</strong> El controlador actual no exige código de acceso. Usa un entero positivo: el servicio actual no valida el rango. No elimina alumnos ni grupos.</aside><pre>Invoke-RestMethod -Method DELETE -Uri "$base/api/registros/limpieza?dias=7"</pre><h3>Respuesta ilustrativa</h3><pre>{"eliminados":25,"diasConservados":7}</pre></section>
+<footer>Referencia: controladores y servicios del repositorio local. Documento autónomo, sin dependencias externas ni ejecución de peticiones.</footer></main></body></html>
+

@@ -1,0 +1,2 @@
+﻿idAlumno,nombre,apellidoPaterno,apellidoMaterno,idGrupo,fingerprintId,iniciales,codigoTutorHash,tutor.nombre,tutor.parentesco,tutor.telefono,tutor.telefonoAlternativo,tutor.correo,activo,fechaRegistro,fechaActualizacion
+"1","Manuel Damian","Guinto","Méndez","2","1","MDGM","342053","Manuel Salvador Guinto","Padre","7814520659","7814521225","manuel.guinto@gmail.com",true,"2026-11-11 09:21:31","2026-11-11 09:30:40"

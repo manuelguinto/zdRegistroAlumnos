@@ -3,6 +3,7 @@ package mx.edu.cetis117.asistencia.controller;
 import mx.edu.cetis117.asistencia.dto.ConsultaAlumnoResponse;
 import mx.edu.cetis117.asistencia.service.AlumnoService;
 import mx.edu.cetis117.asistencia.service.ConsultaService;
+import mx.edu.cetis117.asistencia.service.ImportacionService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,13 +24,16 @@ public class AlumnoController {
 
     private final AlumnoService alumnoService;
     private final ConsultaService consultaService;
+    private final ImportacionService importacionService;
 
     public AlumnoController(
             AlumnoService alumnoService,
-            ConsultaService consultaService
+            ConsultaService consultaService,
+            ImportacionService importacionService
     ) {
         this.alumnoService = alumnoService;
         this.consultaService = consultaService;
+        this.importacionService = importacionService;
     }
 
     @PostMapping(
@@ -37,16 +41,11 @@ public class AlumnoController {
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public Map<String, Object> importar(
-            @RequestPart("file") MultipartFile file
+            @RequestPart("file") MultipartFile file,
+            @org.springframework.web.bind.annotation.RequestHeader("X-Codigo-Sistema") String codigo
     ) throws Exception {
 
-        int registrosImportados =
-                alumnoService.importarCsv(file);
-
-        return Map.of(
-                "registrosImportados",
-                registrosImportados
-        );
+        return importacionService.importar(file, "alumnos", codigo);
     }
 
     @GetMapping("/consulta")

@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: mx.edu.cetis117.asistencia.service.ImportacionServiceTest
+-------------------------------------------------------------------------------
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.505 s -- in mx.edu.cetis117.asistencia.service.ImportacionServiceTest

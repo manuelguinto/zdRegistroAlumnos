@@ -1,18 +1,20 @@
 package mx.edu.cetis117.asistencia.service;
 
-import com.google.cloud.Timestamp;
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.QuerySnapshot;
-import mx.edu.cetis117.asistencia.dto.AsistenciaResponse;
-import org.springframework.stereotype.Service;
-
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.springframework.stereotype.Service;
+
+import com.google.cloud.Timestamp;
+import com.google.cloud.firestore.DocumentReference;
+import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.QuerySnapshot;
+
+import mx.edu.cetis117.asistencia.dto.AsistenciaResponse;
 
 @Service
 public class AsistenciaService {
@@ -85,7 +87,7 @@ public class AsistenciaService {
 
             return new AsistenciaResponse(
                     "ENTRADA_REGISTRADA",
-                    "Registro de entrada exitoso, bienvenido",
+                    "Registro exitoso, Bienvenido",
                     "EntradaRegistrada",
                     idRegistro,
                     null,
@@ -98,7 +100,7 @@ public class AsistenciaService {
 
             return new AsistenciaResponse(
                     "REGISTRO_COMPLETADO",
-                    "Debe esperar al día de mañana para poder registrar su entrada nuevamente",
+                    "No es posible volver a registrarse hoy",
                     "Completado",
                     idRegistro,
                     registro.getString("idAutorizacion"),
@@ -120,10 +122,9 @@ public class AsistenciaService {
             String mensaje =
                     horaSalidaGeneral == null
                             || horaSalidaGeneral.isBlank()
-                            ? "Salida general autorizada, buen regreso a casa"
+                            ? "Salida general"
                             : "Salida general registrada a las "
-                            + horaSalidaGeneral
-                            + ", buen regreso a casa";
+                            + horaSalidaGeneral;
 
             return new AsistenciaResponse(
                     "SALIDA_GENERAL",
@@ -148,7 +149,7 @@ public class AsistenciaService {
 
             return new AsistenciaResponse(
                     "SALIDA_REGISTRADA",
-                    "Registro de salida exitosa, buen regreso a casa",
+                    "Registro de salida autorizada",
                     "Completado",
                     idRegistro,
                     null,
@@ -206,7 +207,7 @@ public class AsistenciaService {
 
             return new AsistenciaResponse(
                     "SALIDA_REGISTRADA",
-                    "Registro de salida exitosa, buen regreso a casa",
+                    "Registro de salida autorizada",
                     "Completado",
                     idRegistro,
                     null,
@@ -241,7 +242,7 @@ public class AsistenciaService {
 
         return new AsistenciaResponse(
                 "SALIDA_AUTORIZADA",
-                "Registro de salida exitosa, buen regreso a casa",
+                "Registro de salida autorizada",
                 "Completado",
                 idRegistro,
                 idAutorizacion,
